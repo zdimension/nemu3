@@ -17,6 +17,7 @@
 # You should have received a copy of the GNU General Public License along with
 # Nemu.  If not, see <http://www.gnu.org/licenses/>.
 
+from __future__ import absolute_import
 import os, socket, sys, traceback, unshare, weakref
 from nemu.environ import *
 import nemu.interface, nemu.protocol, nemu.subprocess_
@@ -28,7 +29,7 @@ class Node(object):
     _nextnode = 0
     @staticmethod
     def get_nodes():
-        s = sorted(Node._nodes.items(), key = lambda x: x[0])
+        s = sorted(list(Node._nodes.items()), key = lambda x: x[0])
         return [x[1] for x in s]
 
     def __init__(self, nonetns = False, forward_X11 = False):
@@ -157,7 +158,7 @@ class Node(object):
                 self._interfaces[i].destroy()
                 del self._interfaces[i]
 
-        return sorted(self._interfaces.values(), key = lambda x: x.index)
+        return sorted(list(self._interfaces.values()), key = lambda x: x.index)
 
     def route(self, tipe = 'unicast', prefix = None, prefix_len = 0,
             nexthop = None, interface = None, metric = 0):
@@ -206,7 +207,7 @@ def _start_child(nonetns):
             execute([SYSCTL_PATH, '-w', 'net.ipv4.ip_forward=1'])
             execute([SYSCTL_PATH, '-w', 'net.ipv6.conf.default.forwarding=1'])
         srv.run()
-    except BaseException, e:
+    except BaseException as e:
         s = "Slave node aborting: %s\n" % str(e)
         sep = "=" * 70 + "\n"
         sys.stderr.write(s + sep)

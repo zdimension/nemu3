@@ -17,8 +17,10 @@
 # You should have received a copy of the GNU General Public License along with
 # Nemu.  If not, see <http://www.gnu.org/licenses/>.
 
+from __future__ import absolute_import
 import copy, fcntl, os, re, socket, struct, subprocess, sys
 from nemu.environ import *
+import six
 
 # helpers
 def _any_to_bool(any):
@@ -361,7 +363,7 @@ def create_if_pair(if1, if2):
             del_if(if2)
         except:
             pass
-        raise t, v, bt
+        six.reraise(t, v, bt)
     interfaces = get_if_data()[1]
     return interfaces[if1.name], interfaces[if2.name]
 
@@ -511,7 +513,7 @@ def set_addr(iface, addresses, recover = True):
 # Bridge handling
 def _sysfs_read_br(brname):
     def readval(fname):
-        f = file(fname)
+        f = open(fname)
         return f.readline().strip()
 
     p = "/sys/class/net/%s/bridge/" % brname
@@ -565,7 +567,7 @@ def create_bridge(br):
             del_bridge(br)
         except:
             pass
-        raise t, v, bt
+        six.reraise(t, v, bt)
     return get_if_data()[1][br.name]
 
 def del_bridge(br):
@@ -574,7 +576,7 @@ def del_bridge(br):
 
 def set_bridge(br, recover = True):
     def saveval(fname, val):
-        f = file(fname, "w")
+        f = open(fname, "w")
         f.write(str(val))
         f.close()
     def do_cmds(basename, cmds, orig_br):

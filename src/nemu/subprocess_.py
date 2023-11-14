@@ -17,8 +17,10 @@
 # You should have received a copy of the GNU General Public License along with
 # Nemu.  If not, see <http://www.gnu.org/licenses/>.
 
+from __future__ import absolute_import
 import fcntl, grp, os, pickle, pwd, signal, select, sys, time, traceback
 from nemu.environ import eintr_wrapper
+from six.moves import range
 
 __all__ = [ 'PIPE', 'STDOUT', 'Popen', 'Subprocess', 'spawn', 'wait', 'poll',
         'get_user', 'system', 'backticks', 'backticks_raise' ]
@@ -288,7 +290,7 @@ def spawn(executable, argv = None, cwd = None, env = None, close_fds = False,
     is not supported here. Also, the original descriptors are not closed.
     """
     userfd = [stdin, stdout, stderr]
-    filtered_userfd = filter(lambda x: x != None and x >= 0, userfd)
+    filtered_userfd = [x for x in userfd if x != None and x >= 0]
     for i in range(3):
         if userfd[i] != None and not isinstance(userfd[i], int):
             userfd[i] = userfd[i].fileno() # pragma: no cover
@@ -323,7 +325,7 @@ def spawn(executable, argv = None, cwd = None, env = None, close_fds = False,
             fcntl.fcntl(w, fcntl.F_SETFD, flags | fcntl.FD_CLOEXEC)
 
             if close_fds == True:
-                for i in xrange(3, MAXFD):
+                for i in range(3, MAXFD):
                     if i != w:
                         try:
                             os.close(i)

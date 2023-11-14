@@ -17,13 +17,16 @@
 # You should have received a copy of the GNU General Public License along with
 # Nemu.  If not, see <http://www.gnu.org/licenses/>.
 
+from __future__ import absolute_import
 import base64, errno, os, passfd, re, select, signal, socket, sys, tempfile
 import time, traceback, unshare
 import nemu.subprocess_, nemu.iproute
 from nemu.environ import *
+from six.moves import map
+from six.moves import range
 
 try:
-    from cPickle import loads, dumps
+    from six.moves.cPickle import loads, dumps
 except:
     from pickle import loads, dumps
 
@@ -121,7 +124,7 @@ class Server(object):
                     try:
                        if nemu.subprocess_.poll(pid):
                            self._children.remove(pid)
-                    except OSError, e:
+                    except OSError as e:
                         if e.errno == errno.ECHILD:
                            self._children.remove(pid)
                         else:
@@ -137,7 +140,7 @@ class Server(object):
             for pid in self._children:
                 try:
                     nemu.subprocess_.poll(pid)
-                except OSError, e:
+                except OSError as e:
                     if e.errno != errno.ECHILD:
                         raise
         finally:
@@ -172,7 +175,7 @@ class Server(object):
         while True:
             try:
                 line = self._rfd.readline()
-            except IOError, e:
+            except IOError as e:
                 line = None
                 if e.errno == errno.EINTR:
                     continue
@@ -202,7 +205,7 @@ class Server(object):
         cmd2 = None
         subcommands = self._commands[cmd1]
 
-        if subcommands.keys() != [ None ]:
+        if list(subcommands.keys()) != [ None ]:
             if len(args) < 1:
                 self.reply(500, "Incomplete command.")
                 return None
@@ -331,7 +334,7 @@ class Server(object):
                 cmdname)
         try:
             fd, payload = passfd.recvfd(self._rfd, len(cmdname) + 1)
-        except (IOError, RuntimeError), e:
+        except (IOError, RuntimeError) as e:
             self.reply(500, "Error receiving FD: %s" % str(e))
             return
 
@@ -374,7 +377,7 @@ class Server(object):
                 params['env']['DISPLAY'] = "127.0.0.1:%d" % display
                 params['env']['XAUTHORITY'] = xauth
 
-            except Exception, e:
+            except Exception as e:
                 warning("Cannot forward X: %s" % e)
                 try:
                     os.unlink(xauth)
@@ -804,8 +807,8 @@ def _b64(text):
         # easier this way
         text = ''
     text = str(text)
-    if len(text) == 0 or filter(lambda x: ord(x) <= ord(" ") or
-            ord(x) > ord("z") or x == "=", text):
+    if len(text) == 0 or [x for x in text if ord(x) <= ord(" ") or
+            ord(x) > ord("z") or x == "="]:
         return "=" + base64.b64encode(text)
     else:
         return text
@@ -908,7 +911,7 @@ def _x11_forwarder(server, xsock, xaddr):
             chan = idx[fd]
             try:
                 s = os.read(fd.fileno(), 4096)
-            except OSError, e:
+            except OSError as e:
                 if e.errno == errno.ECONNRESET:
                     clean(idx, toread, fd)
                     continue
@@ -934,7 +937,7 @@ def _x11_forwarder(server, xsock, xaddr):
             chan = idx[idx[fd]["wr"]]
             try:
                 x = os.write(fd.fileno(), chan["buf"][0])
-            except OSError, e:
+            except OSError as e:
                 if e.errno == errno.EINTR:
                     continue
                 if e.errno == errno.EPIPE or e.errno == errno.ECONNRESET:

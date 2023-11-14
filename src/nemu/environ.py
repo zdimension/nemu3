@@ -17,8 +17,10 @@
 # You should have received a copy of the GNU General Public License along with
 # Nemu.  If not, see <http://www.gnu.org/licenses/>.
 
+from __future__ import absolute_import
 import errno, os, os.path, socket, subprocess, sys, syslog
 from syslog import LOG_ERR, LOG_WARNING, LOG_NOTICE, LOG_INFO, LOG_DEBUG
+from six.moves import range
 
 
 __all__ = ["IP_PATH", "TC_PATH", "BRCTL_PATH", "SYSCTL_PATH", "HZ"]
@@ -110,11 +112,11 @@ def eintr_wrapper(func, *args):
     while True:
         try:
             return func(*args)
-        except OSError, ex: # pragma: no cover
+        except OSError as ex: # pragma: no cover
             if ex.errno == errno.EINTR:
                 continue
             raise
-        except IOError, ex: # pragma: no cover
+        except IOError as ex: # pragma: no cover
             if ex.errno == errno.EINTR:
                 continue
             raise

@@ -24,6 +24,7 @@ and run and test programs in them.
 """
 
 # pylint: disable=W0401,R0903
+from __future__ import absolute_import
 import os, pwd
 from nemu.node import *
 from nemu.interface import *

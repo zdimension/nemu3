@@ -17,6 +17,7 @@
 # You should have received a copy of the GNU General Public License along with
 # Nemu.  If not, see <http://www.gnu.org/licenses/>.
 
+from __future__ import absolute_import
 import os, weakref
 import nemu.iproute
 from nemu.environ import *
@@ -505,6 +506,6 @@ class Switch(ExternalInterface):
         self._parameters = parameters
 
     def _apply_parameters(self, parameters, port = None):
-        for i in [port] if port else self._ports.values():
+        for i in [port] if port else list(self._ports.values()):
             nemu.iproute.set_tc(i.index, **parameters)
 
