@@ -17,18 +17,23 @@
 # You should have received a copy of the GNU General Public License along with
 # Nemu.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import absolute_import
-import base64, errno, os, passfd, re, select, signal, socket, sys, tempfile
-import time, traceback, unshare
-import nemu.subprocess_, nemu.iproute
-from nemu.environ import *
-from six.moves import map
-from six.moves import range
+import base64
+import errno
+import os
+import passfd
+import re
+import select
+import signal
+import socket
+import sys
+import tempfile
+import time
+import traceback
+from pickle import loads, dumps
 
-try:
-    from six.moves.cPickle import loads, dumps
-except:
-    from pickle import loads, dumps
+import nemu.iproute
+import nemu.subprocess_
+from nemu.environ import *
 
 # ============================================================================
 # Server-side protocol implementation
@@ -93,7 +98,7 @@ class Server(object):
     """Class that implements the communication protocol and dispatches calls
     to the required functions. Also works as the main loop for the slave
     process."""
-    def __init__(self, rfd, wfd):
+    def __init__(self, rfd: socket.socket, wfd: socket.socket):
         debug("Server(0x%x).__init__()" % id(self))
         # Dictionary of valid commands
         self._commands = _proto_commands
@@ -109,7 +114,9 @@ class Server(object):
         self._xfwd = None
         self._xsock = None
 
+        self._rfd_socket = rfd
         self._rfd = _get_file(rfd, "r")
+        self._wfd_socket = wfd
         self._wfd = _get_file(wfd, "w")
 
     def clean(self):
@@ -152,7 +159,7 @@ class Server(object):
 
     def reply(self, code, text):
         "Send back a reply to the client; handle multiline messages"
-        if not hasattr(text, '__iter__'):
+        if type(text) != list:
             text = [ text ]
         clean = []
         # Split lines with embedded \n
@@ -250,12 +257,12 @@ class Server(object):
                     return None
             elif argstemplate[j] == 'b':
                 try:
-                    args[i] = _db64(args[i])
+                    args[i] = _db64(args[i]).decode("utf-8")
                 except TypeError:
                     self.reply(500, "Invalid parameter: not base-64 encoded.")
                     return None
             elif argstemplate[j] != 's': # pragma: no cover
-                raise RuntimeError("Invalid argument template: %s" % _argstmpl)
+                raise RuntimeError("Invalid argument template: %s" % argstemplate)
             # Nothing done for "s" parameters
             j += 1
 
@@ -323,10 +330,10 @@ class Server(object):
                     "Invalid number of arguments for PROC ENV: must be even.")
             return
         self._proc['env'] = {}
-        for i in range(len(env)/2):
+        for i in range(len(env)//2):
             self._proc['env'][env[i * 2]] = env[i * 2 + 1]
 
-        self.reply(200, "%d environment definition(s) read." % (len(env) / 2))
+        self.reply(200, "%d environment definition(s) read." % (len(env) // 2))
 
     def do_PROC_SIN(self, cmdname):
         self.reply(354,
@@ -453,7 +460,7 @@ class Server(object):
                     "Invalid number of arguments for IF SET: must be even.")
             return
         d = {'index': ifnr}
-        for i in range(len(args) / 2):
+        for i in range(len(args) // 2):
             d[str(args[i * 2])] = args[i * 2 + 1]
 
         iface = nemu.iproute.interface(**d)
@@ -532,7 +539,7 @@ class Server(object):
             return
         # Needs to be a separate command to handle synch & buffering issues
         try:
-            passfd.sendfd(self._wfd, self._xsock.fileno(), "1")
+            passfd.sendfd(self._wfd, self._xsock.fileno(), b"1")
         except:
             # need to fill the buffer on the other side, nevertheless
             self._wfd.write("1")
@@ -548,9 +555,11 @@ class Server(object):
 class Client(object):
     """Client-side implementation of the communication protocol. Acts as a RPC
     service."""
-    def __init__(self, rfd, wfd):
+    def __init__(self, rfd: socket.socket, wfd: socket.socket):
         debug("Client(0x%x).__init__()" % id(self))
+        self._rfd_socket = rfd
         self._rfd = _get_file(rfd, "r")
+        self._wfd_socket = wfd
         self._wfd = _get_file(wfd, "w")
         self._forwarder = None
         # Wait for slave to send banner
@@ -560,7 +569,7 @@ class Client(object):
         debug("Client(0x%x).__del__()" % id(self))
         self.shutdown()
 
-    def _send_cmd(self, *args):
+    def _send_cmd(self, *args: str):
         if not self._wfd:
             raise RuntimeError("Client already shut down.")
         s = " ".join(map(str, args)) + "\n"
@@ -593,8 +602,9 @@ class Client(object):
         code, text = self._read_reply()
         if code == 550: # exception
             e = loads(_db64(text.partition("\n")[2]))
+            sys.stderr.write(e.child_traceback)
             raise e
-        if code / 100 != expected:
+        if code // 100 != expected:
             raise RuntimeError("Error from slave: %d %s" % (code, text))
         return text
 
@@ -607,19 +617,21 @@ class Client(object):
         self._send_cmd("QUIT")
         self._read_and_check_reply()
         self._rfd.close()
+        self._rfd_socket.close()
         self._rfd = None
         self._wfd.close()
+        self._rfd_socket.close()
         self._wfd = None
         if self._forwarder:
             os.kill(self._forwarder, signal.SIGTERM)
             self._forwarder = None
 
-    def _send_fd(self, name, fd):
+    def _send_fd(self, name: str, fd: int):
         "Pass a file descriptor"
         self._send_cmd("PROC", name)
         self._read_and_check_reply(3)
         try:
-            passfd.sendfd(self._wfd, fd, "PROC " + name)
+            passfd.sendfd(self._wfd, fd, ("PROC " + name).encode("ascii"))
         except:
             # need to fill the buffer on the other side, nevertheless
             self._wfd.write("=" * (len(name) + 5) + "\n")
@@ -683,10 +695,10 @@ class Client(object):
         Returns the exitcode if finished, None otherwise."""
         self._send_cmd("PROC", "POLL", pid)
         code, text = self._read_reply()
-        if code / 100 == 2:
+        if code // 100 == 2:
             exitcode = int(text.split()[0])
             return exitcode
-        if code / 100 == 4:
+        if code // 100 == 4:
             return None
         else:
             raise RuntimeError("Error on command: %d %s" % (code, text))
@@ -802,20 +814,23 @@ class Client(object):
         server = self.set_x11(protoname, hexkey)
         self._forwarder = _spawn_x11_forwarder(server, sock, addr)
 
-def _b64(text):
+def _b64(text: str | bytes) -> str:
     if text == None:
         # easier this way
         text = ''
-    text = str(text)
-    if len(text) == 0 or [x for x in text if ord(x) <= ord(" ") or
-            ord(x) > ord("z") or x == "="]:
-        return "=" + base64.b64encode(text)
+    if type(text) is str:
+        btext = text.encode("utf-8")
+    else:
+        btext = text
+    if len(text) == 0 or any(x for x in btext if x <= ord(" ") or
+            x > ord("z") or x == ord("=")):
+        return "=" + base64.b64encode(btext).decode("ascii")
     else:
         return text
 
-def _db64(text):
+def _db64(text: str) -> bytes:
     if not text or text[0] != '=':
-        return text
+        return text.encode("utf-8")
     return base64.b64decode(text[1:])
 
 def _get_file(fd, mode):

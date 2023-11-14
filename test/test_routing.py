@@ -17,13 +17,13 @@ class TestRouting(unittest.TestCase):
     @test_util.skipUnless(os.getuid() == 0, "Test requires root privileges")
     def test_routing(self):
         node = nemu.Node()
-        self.assertEquals(len(node.get_routes()), 0)
+        self.assertEqual(len(node.get_routes()), 0)
 
         if0 = node.add_if()
         if0.add_v4_address('10.0.0.1', 24)
         if0.up = True
         routes = node.get_routes()
-        self.assertEquals(routes, [node.route(prefix = '10.0.0.0',
+        self.assertEqual(routes, [node.route(prefix = '10.0.0.0',
             prefix_len = 24, interface = if0)])
 
         node.add_route(nexthop = '10.0.0.2') # default route
@@ -45,7 +45,7 @@ class TestRouting(unittest.TestCase):
         node.del_route(prefix = '11.1.0.1', prefix_len = 32, interface = if0)
         node.del_route(prefix = '10.0.0.0', prefix_len = 24, interface = if0)
 
-        self.assertEquals(node.get_routes(), [])
+        self.assertEqual(node.get_routes(), [])
 
 if __name__ == '__main__':
     unittest.main()

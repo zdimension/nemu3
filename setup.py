@@ -4,6 +4,8 @@
 
 from distutils.core import setup, Extension, Command
 
+passfd = Extension('_passfd', sources = ['src/passfd/passfd.c'])
+
 setup(
         name        = 'nemu',
         version     = '0.3.1',
@@ -15,6 +17,7 @@ setup(
         license     = 'GPLv2',
         platforms   = 'Linux',
         packages    = ['nemu'],
-        install_requires = ['python-unshare', 'python-passfd'],
-        package_dir = {'': 'src'}
+        install_requires = ['unshare', 'six'],
+        package_dir = {'': 'src'},
+        ext_modules = [passfd]
         )

@@ -17,11 +17,14 @@
 # You should have received a copy of the GNU General Public License along with
 # Nemu.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import absolute_import
-import errno, os, os.path, socket, subprocess, sys, syslog
+import errno
+import os
+import os.path
+import socket
+import subprocess
+import sys
+import syslog
 from syslog import LOG_ERR, LOG_WARNING, LOG_NOTICE, LOG_INFO, LOG_DEBUG
-from six.moves import range
-
 
 __all__ = ["IP_PATH", "TC_PATH", "BRCTL_PATH", "SYSCTL_PATH", "HZ"]
 __all__ += ["TCPDUMP_PATH", "NETPERF_PATH", "XAUTH_PATH", "XDPYINFO_PATH"]
@@ -84,8 +87,7 @@ def execute(cmd):
         RuntimeError: the command was unsuccessful (return code != 0).
     """
     debug("execute(%s)" % cmd)
-    null = open("/dev/null", "r+")
-    proc = subprocess.Popen(cmd, stdout = null, stderr = subprocess.PIPE)
+    proc = subprocess.Popen(cmd, stdout = subprocess.DEVNULL, stderr = subprocess.PIPE)
     _, err = proc.communicate()
     if proc.returncode != 0:
         raise RuntimeError("Error executing `%s': %s" % (" ".join(cmd), err))
@@ -105,7 +107,7 @@ def backticks(cmd):
     out, err = proc.communicate()
     if proc.returncode != 0:
         raise RuntimeError("Error executing `%s': %s" % (" ".join(cmd), err))
-    return out
+    return out.decode("utf-8")
 
 def eintr_wrapper(func, *args):
     "Wraps some callable with a loop that retries on EINTR."
@@ -133,7 +135,7 @@ def find_listen_port(family = socket.AF_INET, type = socket.SOCK_STREAM,
     raise RuntimeError("Cannot find an usable port in the range specified")
 
 # Logging
-_log_level = LOG_WARNING
+_log_level = LOG_DEBUG
 _log_use_syslog = False
 _log_stream = sys.stderr
 _log_syslog_opts = ()

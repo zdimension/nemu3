@@ -17,8 +17,9 @@
 # You should have received a copy of the GNU General Public License along with
 # Nemu.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import absolute_import
-import os, weakref
+import os
+import weakref
+
 import nemu.iproute
 from nemu.environ import *
 
@@ -39,7 +40,7 @@ class Interface(object):
     def _gen_if_name():
         n = Interface._gen_next_id()
         # Max 15 chars
-        return "NETNSif-%.4x%.3x" % (os.getpid(), n)
+        return "NETNSif-%.4x%.3x" % (os.getpid() % 0xffff, n)
 
     def __init__(self, index):
         self._idx = index
@@ -336,7 +337,7 @@ class ExternalInterface(Interface):
         nemu.iproute.del_addr(self.index, addr)
 
     def get_addresses(self):
-        addresses = nemu.iproute.get_addr_data(self.index)
+        addresses = nemu.iproute.get_addr_data()
         ret = []
         for a in addresses:
             if hasattr(a, 'broadcast'):
@@ -385,7 +386,7 @@ class Switch(ExternalInterface):
     def _gen_br_name():
         n = Switch._gen_next_id()
         # Max 15 chars
-        return "NETNSbr-%.4x%.3x" % (os.getpid(), n)
+        return "NETNSbr-%.4x%.3x" % (os.getpid() % 0xffff, n)
 
     def __init__(self, **args):
         """Creates a new Switch object, which models a linux bridge device.
@@ -434,7 +435,7 @@ class Switch(ExternalInterface):
             self._check_port(p)
 
         self.up = False
-        for p in self._ports.values():
+        for p in list(self._ports.values()):
             self.disconnect(p)
 
         self._ports.clear()

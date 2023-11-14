@@ -1,5 +1,6 @@
 #!/usr/bin/env python2
 # vim:ts=4:sw=4:et:ai:sts=4
+
 import os, nemu, subprocess, time
 
 # Uncomment for verbose operation.
@@ -12,8 +13,8 @@ X = "DISPLAY" in os.environ and xterm
 node0 = nemu.Node(forward_X11 = X)
 node1 = nemu.Node(forward_X11 = X)
 node2 = nemu.Node(forward_X11 = X)
-print "Nodes started with pids: %s" % str((node0.pid, node1.pid,
-    node2.pid))
+print("Nodes started with pids: %s" % str((node0.pid, node1.pid,
+    node2.pid)))
 
 # interface object maps to a veth pair with one end in a netns
 if0  = nemu.NodeInterface(node0)
@@ -47,19 +48,18 @@ node2.add_route(prefix = '10.0.0.0', prefix_len = 24, nexthop = '10.0.1.1')
 
 # Test connectivity first. Run process, hide output and check
 # return code
-null = file("/dev/null", "w")
-app0 = node0.Popen("ping -c 1 10.0.1.2", shell = True, stdout = null)
+app0 = node0.Popen("ping -c 1 10.0.1.2", shell = True, stdout = subprocess.DEVNULL)
 ret = app0.wait()
 assert ret == 0
 
-app1 = node2.Popen("ping -c 1 10.0.0.1", shell = True, stdout = null)
+app1 = node2.Popen("ping -c 1 10.0.0.1", shell = True, stdout = subprocess.DEVNULL)
 ret = app1.wait()
 assert ret == 0
-print "Connectivity IPv4 OK!"
+print("Connectivity IPv4 OK!")
 
 # Some nice visual demo.
 if X:
-    print "Running ping and tcpdump in different nodes."
+    print("Running ping and tcpdump in different nodes.")
     app1 = node1.Popen("%s -geometry -0+0 -e %s -ni %s" %
             (xterm, nemu.environ.TCPDUMP_PATH, if1b.name), shell = True)
     time.sleep(3)
@@ -69,12 +69,12 @@ if X:
     app1.signal()
     app1.wait()
 
-print "Running network conditions test."
+print("Running network conditions test.")
 # When using a args list, the shell is not needed
 app2 = node0.Popen(["ping", "-q", "-c1000", "-f", "10.0.1.2"],
         stdout = subprocess.PIPE)
 
 out, err = app2.communicate()
 
-print "Ping outout:"
-print out
+print("Ping outout:")
+print(out)

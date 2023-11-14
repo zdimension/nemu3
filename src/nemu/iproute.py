@@ -17,10 +17,18 @@
 # You should have received a copy of the GNU General Public License along with
 # Nemu.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import absolute_import
-import copy, fcntl, os, re, socket, struct, subprocess, sys
-from nemu.environ import *
+import copy
+import fcntl
+import os
+import re
+import socket
+import struct
+import sys
+
 import six
+
+from nemu.environ import *
+
 
 # helpers
 def _any_to_bool(any):
@@ -488,33 +496,11 @@ def del_addr(iface, address):
             "%s/%d" % (address.address, int(address.prefix_len))]
     execute(cmd)
 
-def set_addr(iface, addresses, recover = True):
-    ifname = _get_if_name(iface)
-    addresses = get_addr_data()[1][ifname]
-    to_remove = set(orig_addresses) - set(addresses)
-    to_add = set(addresses) - set(orig_addresses)
-
-    for a in to_remove:
-        try:
-            del_addr(ifname, a)
-        except:
-            if recover:
-                set_addr(orig_addresses, recover = False) # rollback
-                raise
-
-    for a in to_add:
-        try:
-            add_addr(ifname, a)
-        except:
-            if recover:
-                set_addr(orig_addresses, recover = False) # rollback
-                raise
-
 # Bridge handling
 def _sysfs_read_br(brname):
     def readval(fname):
-        f = open(fname)
-        return f.readline().strip()
+        with open(fname) as f:
+            return f.readline().strip()
 
     p = "/sys/class/net/%s/bridge/" % brname
     p2 = "/sys/class/net/%s/brif/" % brname
@@ -882,7 +868,7 @@ def set_tc(iface, bandwidth = None, delay = None, delay_jitter = None,
     if bandwidth:
         rate = "%dbit" % int(bandwidth)
         mtu = ifdata[iface.index].mtu
-        burst = max(mtu, int(bandwidth) / HZ)
+        burst = max(mtu, int(bandwidth) // HZ)
         limit = burst * 2 # FIXME?
         handle = "1:"
         if cmd == "change":
@@ -953,8 +939,9 @@ def create_tap(iface, use_pi = False, tun = False):
 
     fd = os.open("/dev/net/tun", os.O_RDWR)
 
-    err = fcntl.ioctl(fd, TUNSETIFF, struct.pack("16sH", iface.name, mode))
-    if err < 0:
+    try:
+        fcntl.ioctl(fd, TUNSETIFF, struct.pack("16sH", iface.name.encode("ascii"), mode))
+    except IOError:
         os.close(fd)
         raise RuntimeError("Could not configure device %s" % iface.name)
 

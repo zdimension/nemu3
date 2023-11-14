@@ -42,7 +42,7 @@ for i in range(SIZE):
             node[i].add_route(prefix='10.0.%d.0' % j, prefix_len=24,
                     nexthop='10.0.%d.2' % i)
 
-print "Nodes started with pids: %s" % str([n.pid for n in node])
+print("Nodes started with pids: %s" % str([n.pid for n in node]))
 
 #switch0 = nemu.Switch(
 #        bandwidth = 100 * 1024 * 1024,
@@ -53,16 +53,15 @@ print "Nodes started with pids: %s" % str([n.pid for n in node])
 
 # Test connectivity first. Run process, hide output and check
 # return code
-null = file("/dev/null", "w")
 app0 = node[0].Popen("ping -c 1 10.0.%d.2" % (SIZE - 2), shell=True,
-        stdout=null)
+        stdout=subprocess.DEVNULL)
 ret = app0.wait()
 assert ret == 0
 
-app1 = node[-1].Popen("ping -c 1 10.0.0.1", shell = True, stdout = null)
+app1 = node[-1].Popen("ping -c 1 10.0.0.1", shell = True, stdout = subprocess.DEVNULL)
 ret = app1.wait()
 assert ret == 0
-print "Connectivity IPv4 OK!"
+print("Connectivity IPv4 OK!")
 
 if X:
     app = []

@@ -9,13 +9,13 @@ class TestNode(unittest.TestCase):
     @test_util.skipUnless(os.getuid() == 0, "Test requires root privileges")
     def test_node(self):
         node = nemu.Node()
-        self.failIfEqual(node.pid, os.getpid())
-        self.failIfEqual(node.pid, None)
+        self.assertNotEqual(node.pid, os.getpid())
+        self.assertNotEqual(node.pid, None)
         # check if it really exists
         os.kill(node.pid, 0)
 
         nodes = nemu.get_nodes()
-        self.assertEquals(nodes, [node])
+        self.assertEqual(nodes, [node])
 
         self.assertTrue(node.get_interface("lo").up)
 
@@ -28,7 +28,7 @@ class TestNode(unittest.TestCase):
                 os._exit(0)
             os._exit(1)
         (pid, exitcode) = os.waitpid(chld, 0)
-        self.assertEquals(exitcode, 0, "Node does not recognise forks")
+        self.assertEqual(exitcode, 0, "Node does not recognise forks")
 
     @test_util.skipUnless(os.getuid() == 0, "Test requires root privileges")
     def test_cleanup(self):
@@ -44,8 +44,8 @@ class TestNode(unittest.TestCase):
         # Test automatic destruction
         orig_devs = len(test_util.get_devs())
         create_stuff()
-        self.assertEquals(nemu.get_nodes(), [])
-        self.assertEquals(orig_devs, len(test_util.get_devs()))
+        self.assertEqual(nemu.get_nodes(), [])
+        self.assertEqual(orig_devs, len(test_util.get_devs()))
 
         # Test at_exit hooks
         orig_devs = len(test_util.get_devs())
@@ -56,7 +56,7 @@ class TestNode(unittest.TestCase):
             create_stuff()
             os._exit(0)
         os.waitpid(chld, 0)
-        self.assertEquals(orig_devs, len(test_util.get_devs()))
+        self.assertEqual(orig_devs, len(test_util.get_devs()))
 
         # Test signal hooks
         orig_devs = len(test_util.get_devs())
@@ -70,7 +70,7 @@ class TestNode(unittest.TestCase):
                 time.sleep(10)
         os.kill(chld, signal.SIGTERM)
         os.waitpid(chld, 0)
-        self.assertEquals(orig_devs, len(test_util.get_devs()))
+        self.assertEqual(orig_devs, len(test_util.get_devs()))
 
 if __name__ == '__main__':
     unittest.main()

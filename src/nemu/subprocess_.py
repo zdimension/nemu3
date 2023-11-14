@@ -17,10 +17,18 @@
 # You should have received a copy of the GNU General Public License along with
 # Nemu.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import absolute_import
-import fcntl, grp, os, pickle, pwd, signal, select, sys, time, traceback
+import fcntl
+import grp
+import os
+import pickle
+import pwd
+import select
+import signal
+import sys
+import time
+import traceback
+
 from nemu.environ import eintr_wrapper
-from six.moves import range
 
 __all__ = [ 'PIPE', 'STDOUT', 'Popen', 'Subprocess', 'spawn', 'wait', 'poll',
         'get_user', 'system', 'backticks', 'backticks_raise' ]
@@ -190,7 +198,7 @@ class Popen(Subprocess):
             if getattr(self, k) != None:
                 eintr_wrapper(os.close, v)
 
-    def communicate(self, input = None):
+    def communicate(self, input: bytes = None) -> tuple[bytes, bytes]:
         """See Popen.communicate."""
         # FIXME: almost verbatim from stdlib version, need to be removed or
         # something
@@ -217,7 +225,7 @@ class Popen(Subprocess):
             if self.stdin in w:
                 wrote = os.write(self.stdin.fileno(),
                         #buffer(input, offset, select.PIPE_BUF))
-                        buffer(input, offset, 512)) # XXX: py2.7
+                        input[offset:offset+512]) # XXX: py2.7
                 offset += wrote
                 if offset >= len(input):
                     self.stdin.close()
@@ -226,7 +234,7 @@ class Popen(Subprocess):
                 if i in r:
                     d = os.read(i.fileno(), 1024) # No need for eintr wrapper
                     if d == "":
-                        i.close
+                        i.close()
                         rset.remove(i)
                     else:
                         if i == self.stdout:
@@ -235,9 +243,9 @@ class Popen(Subprocess):
                             err.append(d)
 
         if out != None:
-            out = ''.join(out)
+            out = b''.join(out)
         if err != None:
-            err = ''.join(err)
+            err = b''.join(err)
         self.wait()
         return (out, err)
 
@@ -376,7 +384,7 @@ def spawn(executable, argv = None, cwd = None, env = None, close_fds = False,
     eintr_wrapper(os.close, w)
 
     # read EOF for success, or a string as error info
-    s = ""
+    s = b""
     while True:
         s1 = eintr_wrapper(os.read, r, 4096)
         if s1 == "":
@@ -384,7 +392,7 @@ def spawn(executable, argv = None, cwd = None, env = None, close_fds = False,
         s += s1
     eintr_wrapper(os.close, r)
 
-    if s == "":
+    if s == b"":
         return pid
 
     # It was an error

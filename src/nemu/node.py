@@ -17,10 +17,17 @@
 # You should have received a copy of the GNU General Public License along with
 # Nemu.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import absolute_import
-import os, socket, sys, traceback, unshare, weakref
+import os
+import socket
+import sys
+import traceback
+import unshare
+import weakref
+
+import nemu.interface
+import nemu.protocol
+import nemu.subprocess_
 from nemu.environ import *
-import nemu.interface, nemu.protocol, nemu.subprocess_
 
 __all__ = ['Node', 'get_nodes', 'import_if']
 
@@ -186,7 +193,7 @@ class Node(object):
 # Handle the creation of the child; parent gets (fd, pid), child creates and
 # runs a Server(); never returns.
 # Requires CAP_SYS_ADMIN privileges to run.
-def _start_child(nonetns):
+def _start_child(nonetns) -> (socket.socket, int):
     # Create socket pair to communicate
     (s0, s1) = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
     # Spawn a child that will run in a loop

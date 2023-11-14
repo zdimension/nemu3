@@ -1,6 +1,6 @@
 # vim: ts=4:sw=4:et:ai:sts=4
 
-import csv, StringIO, subprocess
+import csv, subprocess
 
 class Graph:
     [LINE, DOT, POINT, LINEPOINT] = range(0, 4)
@@ -14,12 +14,12 @@ class Graph:
     def generate(self, output_file):
         lines = self.gen_output()
         lines.insert(0, "set terminal postscript")
-        lines.insert(0, "set output '%s'" % filename)
+        lines.insert(0, "set output '%s'" % output_file)
         gnuplot = subprocess.Popen(['gnuplot', '-'],
                 stdin = subprocess.PIPE,
                 stdout = subprocess.PIPE,
                 stderr = subprocess.STDOUT)
-        gnuplot.communicate(input = "\n".join(lines))
+        gnuplot.communicate(input = "\n".join(lines).encode("utf-8"))
     def Xplot(self, plotnr):
         lines = self.gen_output(plotnr)
         lines.insert(0, "set terminal wxt")
@@ -158,7 +158,7 @@ class Data:
         for row in self._data:
             row.append(fn(row))
         if colname:
-            self._colname.append(colname)
+            self._colnames.append(colname)
             for row in self._datadict:
                 row[colname] = fn(row)
         return self.ncols() - 1

@@ -41,7 +41,7 @@ def main():
         opts, args = getopt.getopt(sys.argv[1:], "hn:s:t:p:b:", [
             "help", "nodes=", "pktsize=", "time=", "packets=", "bytes=",
             "use-p2p", "delay=", "jitter=", "bandwidth=", "format=" ])
-    except getopt.GetoptError, err:
+    except getopt.GetoptError as err:
         error = str(err) # opts will be empty
 
     pktsize = nr = time = packets = nbytes = None
@@ -155,12 +155,12 @@ def main():
     out = out.strip()
 
     if format != "csv":
-        print "Command line: %s" % (" ".join(sys.argv[1:]))
-        print out.strip()
+        print("Command line: %s" % (" ".join(sys.argv[1:])))
+        print(out.strip())
         return
 
     data = out.split(" ")
-    data = dict(map(lambda s: s.partition(":")[::2], data))
+    data = dict([s.partition(":")[::2] for s in data])
     if sorted(data.keys()) != sorted(["brx", "prx", "pksz", "plsz", "err",
             "mind", "avgd", "maxd", "jit", "time"]):
         raise RuntimeError("Invalid output from udp-perf")
@@ -182,8 +182,8 @@ def main():
 def ip2dec(ip):
     match = re.search(r'^(\d+)\.(\d+)\.(\d+)\.(\d+)$', ip)
     assert match
-    return long(match.group(1)) * 2**24 + long(match.group(2)) * 2**16 + \
-            long(match.group(3)) * 2**8  + long(match.group(4))
+    return int(match.group(1)) * 2**24 + int(match.group(2)) * 2**16 + \
+        int(match.group(3)) * 2**8  + int(match.group(4))
 
 def dec2ip(dec):
     res = [None] * 4
