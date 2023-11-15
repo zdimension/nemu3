@@ -28,14 +28,16 @@ import sys
 import time
 import traceback
 
+from nemu import compat
 from nemu.environ import eintr_wrapper
 
-__all__ = [ 'PIPE', 'STDOUT', 'Popen', 'Subprocess', 'spawn', 'wait', 'poll',
-        'get_user', 'system', 'backticks', 'backticks_raise' ]
+__all__ = ['PIPE', 'STDOUT', 'Popen', 'Subprocess', 'spawn', 'wait', 'poll',
+           'get_user', 'system', 'backticks', 'backticks_raise']
 
 # User-facing interfaces
 
-KILL_WAIT = 3 # seconds
+KILL_WAIT = 3  # seconds
+
 
 class Subprocess(object):
     """Class that allows the execution of programs inside a nemu Node. This is
@@ -43,9 +45,10 @@ class Subprocess(object):
     interface."""
     # FIXME
     default_user = None
-    def __init__(self, node, argv, executable = None,
-            stdin = None, stdout = None, stderr = None,
-            shell = False, cwd = None, env = None, user = None):
+
+    def __init__(self, node, argv: str | list[str], executable=None,
+                 stdin=None, stdout=None, stderr=None,
+                 shell=False, cwd=None, env=None, user=None):
         self._slave = node._slave
         """Forks and execs a program, with stdio redirection and user
         switching.
@@ -79,19 +82,19 @@ class Subprocess(object):
             user = Subprocess.default_user
 
         if isinstance(argv, str):
-            argv = [ argv ]
+            argv = [argv]
         if shell:
-            argv = [ '/bin/sh', '-c' ] + argv
-        
+            argv = ['/bin/sh', '-c'] + argv
+
         # Initialize attributes that would be used by the destructor if spawn
         # fails
         self._pid = self._returncode = None
         # confusingly enough, to go to the function at the top of this file,
         # I need to call it thru the communications protocol: remember that
         # happens in another process!
-        self._pid = self._slave.spawn(argv, executable = executable,
-                stdin = stdin, stdout = stdout, stderr = stderr,
-                cwd = cwd, env = env, user = user)
+        self._pid = self._slave.spawn(argv, executable=executable,
+                                      stdin=stdin, stdout=stdout, stderr=stderr,
+                                      cwd=cwd, env=env, user=user)
 
         node._add_subprocess(self)
 
@@ -114,7 +117,7 @@ class Subprocess(object):
             self._returncode = self._slave.wait(self._pid)
         return self.returncode
 
-    def signal(self, sig = signal.SIGTERM):
+    def signal(self, sig=signal.SIGTERM):
         """Sends a signal to the process."""
         if self._returncode == None:
             self._slave.signal(self._pid, sig)
@@ -131,10 +134,11 @@ class Subprocess(object):
             return -os.WTERMSIG(self._returncode)
         if os.WIFEXITED(self._returncode):
             return os.WEXITSTATUS(self._returncode)
-        raise RuntimeError("Invalid return code") # pragma: no cover
+        raise RuntimeError("Invalid return code")  # pragma: no cover
 
     def __del__(self):
         self.destroy()
+
     def destroy(self):
         if self._returncode != None or self._pid == None:
             return
@@ -145,19 +149,23 @@ class Subprocess(object):
                 return
             time.sleep(0.1)
         sys.stderr.write("WARNING: killing forcefully process %d.\n" %
-                self._pid)
+                         self._pid)
         self.signal(signal.SIGKILL)
         self.wait()
 
+
 PIPE = -1
 STDOUT = -2
+DEVNULL = -3
+
+
 class Popen(Subprocess):
     """Higher-level interface for executing processes, that tries to emulate
     the stdlib's subprocess.Popen as much as possible."""
 
-    def __init__(self, node, argv, executable = None,
-            stdin = None, stdout = None, stderr = None, bufsize = 0,
-            shell = False, cwd = None, env = None, user = None):
+    def __init__(self, node, argv, executable=None,
+                 stdin=None, stdout=None, stderr=None, bufsize=0,
+                 shell=False, cwd=None, env=None, user=None):
         """As in Subprocess, `node' specifies the nemu Node to run in.
 
         The `stdin', `stdout', and `stderr' parameters also accept the special
@@ -168,30 +176,33 @@ class Popen(Subprocess):
 
         self.stdin = self.stdout = self.stderr = None
         self._pid = self._returncode = None
-        fdmap = { "stdin": stdin, "stdout": stdout, "stderr": stderr }
+        fdmap = {"stdin": stdin, "stdout": stdout, "stderr": stderr}
         # if PIPE: all should be closed at the end
         for k, v in fdmap.items():
             if v == None:
                 continue
             if v == PIPE:
-                r, w = os.pipe()
+                r, w = compat.pipe()
                 if k == "stdin":
                     self.stdin = os.fdopen(w, 'wb', bufsize)
                     fdmap[k] = r
                 else:
                     setattr(self, k, os.fdopen(r, 'rb', bufsize))
                     fdmap[k] = w
+            elif v == DEVNULL:
+                fdmap[k] = os.open(os.devnull, os.O_RDWR)
             elif isinstance(v, int):
                 pass
             else:
                 fdmap[k] = v.fileno()
+                os.set_inheritable(fdmap[k], True)
         if stderr == STDOUT:
             fdmap['stderr'] = fdmap['stdout']
 
-        super(Popen, self).__init__(node, argv, executable = executable,
-                stdin = fdmap['stdin'], stdout = fdmap['stdout'],
-                stderr = fdmap['stderr'],
-                shell = shell, cwd = cwd, env = env, user = user)
+        super(Popen, self).__init__(node, argv, executable=executable,
+                                    stdin=fdmap['stdin'], stdout=fdmap['stdout'],
+                                    stderr=fdmap['stderr'],
+                                    shell=shell, cwd=cwd, env=env, user=user)
 
         # Close pipes, they have been dup()ed to the child
         for k, v in fdmap.items():
@@ -224,16 +235,16 @@ class Popen(Subprocess):
             r, w, x = select.select(rset, wset, [])
             if self.stdin in w:
                 wrote = os.write(self.stdin.fileno(),
-                        #buffer(input, offset, select.PIPE_BUF))
-                        input[offset:offset+512]) # XXX: py2.7
+                                 # buffer(input, offset, select.PIPE_BUF))
+                                 input[offset:offset + 512])  # XXX: py2.7
                 offset += wrote
                 if offset >= len(input):
                     self.stdin.close()
                     wset = []
             for i in self.stdout, self.stderr:
                 if i in r:
-                    d = os.read(i.fileno(), 1024) # No need for eintr wrapper
-                    if d == "":
+                    d = os.read(i.fileno(), 1024)  # No need for eintr wrapper
+                    if d == b"":
                         i.close()
                         rset.remove(i)
                     else:
@@ -249,38 +260,42 @@ class Popen(Subprocess):
         self.wait()
         return (out, err)
 
+
 def system(node, args):
     """Emulates system() function, if `args' is an string, it uses `/bin/sh' to
     exexecute it, otherwise is interpreted as the argv array to call execve."""
     shell = isinstance(args, str)
-    return Popen(node, args, shell = shell).wait()
+    return Popen(node, args, shell=shell).wait()
+
 
 def backticks(node, args):
     """Emulates shell backticks, if `args' is an string, it uses `/bin/sh' to
     exexecute it, otherwise is interpreted as the argv array to call execve."""
     shell = isinstance(args, str)
-    return Popen(node, args, shell = shell, stdout = PIPE).communicate()[0]
+    return Popen(node, args, shell=shell, stdout=PIPE).communicate()[0].decode("utf-8")
 
-def backticks_raise(node, args):
+
+def backticks_raise(node, args: str | list[str]) -> str:
     """Emulates shell backticks, if `args' is an string, it uses `/bin/sh' to
     exexecute it, otherwise is interpreted as the argv array to call execve.
     Raises an RuntimeError if the return value is not 0."""
     shell = isinstance(args, str)
-    p = Popen(node, args, shell = shell, stdout = PIPE)
+    p = Popen(node, args, shell=shell, stdout=PIPE)
     out = p.communicate()[0]
     ret = p.returncode
     if ret > 0:
         raise RuntimeError("Command failed with return code %d." % ret)
     if ret < 0:
         raise RuntimeError("Command killed by signal %d." % -ret)
-    return out
+    return out.decode("utf-8")
+
 
 # =======================================================================
 #
 # Server-side code, called from nemu.protocol.Server
 
-def spawn(executable, argv = None, cwd = None, env = None, close_fds = False,
-        stdin = None, stdout = None, stderr = None, user = None):
+def spawn(executable, argv=None, cwd=None, env=None, close_fds=False,
+          stdin=None, stdout=None, stderr=None, user=None):
     """Internal function that performs all the dirty work for Subprocess, Popen
     and friends. This is executed in the slave process, directly from the
     protocol.Server class.
@@ -301,7 +316,7 @@ def spawn(executable, argv = None, cwd = None, env = None, close_fds = False,
     filtered_userfd = [x for x in userfd if x != None and x >= 0]
     for i in range(3):
         if userfd[i] != None and not isinstance(userfd[i], int):
-            userfd[i] = userfd[i].fileno() # pragma: no cover
+            userfd[i] = userfd[i].fileno()  # pragma: no cover
 
     # Verify there is no clash
     assert not (set([0, 1, 2]) & set(filtered_userfd))
@@ -315,7 +330,7 @@ def spawn(executable, argv = None, cwd = None, env = None, close_fds = False,
         env['HOME'] = home
         env['USER'] = user
 
-    (r, w) = os.pipe()
+    (r, w) = compat.pipe()
     pid = os.fork()
     if pid == 0: # pragma: no cover
         # coverage doesn't seem to understand fork
@@ -325,7 +340,7 @@ def spawn(executable, argv = None, cwd = None, env = None, close_fds = False,
                 if userfd[i] != None and userfd[i] >= 0:
                     os.dup2(userfd[i], i)
                     if userfd[i] != i and userfd[i] not in userfd[0:i]:
-                        eintr_wrapper(os.close, userfd[i]) # only in child!
+                        eintr_wrapper(os.close, userfd[i])  # only in child!
 
             # Set up special control pipe
             eintr_wrapper(os.close, r)
@@ -355,13 +370,13 @@ def spawn(executable, argv = None, cwd = None, env = None, close_fds = False,
             if cwd != None:
                 os.chdir(cwd)
             if not argv:
-                argv = [ executable ]
-            if '/' in executable: # Should not search in PATH
+                argv = [executable]
+            if '/' in executable:  # Should not search in PATH
                 if env != None:
                     os.execve(executable, argv, env)
                 else:
                     os.execv(executable, argv)
-            else: # use PATH
+            else:  # use PATH
                 if env != None:
                     os.execvpe(executable, argv, env)
                 else:
@@ -373,10 +388,10 @@ def spawn(executable, argv = None, cwd = None, env = None, close_fds = False,
                 # Got the child_traceback attribute trick from Python's
                 # subprocess.py
                 v.child_traceback = "".join(
-                        traceback.format_exception(t, v, tb))
+                    traceback.format_exception(t, v, tb))
                 eintr_wrapper(os.write, w, pickle.dumps(v))
                 eintr_wrapper(os.close, w)
-                #traceback.print_exc()
+                # traceback.print_exc()
             except:
                 traceback.print_exc()
             os._exit(1)
@@ -387,7 +402,7 @@ def spawn(executable, argv = None, cwd = None, env = None, close_fds = False,
     s = b""
     while True:
         s1 = eintr_wrapper(os.read, r, 4096)
-        if s1 == "":
+        if s1 == b"":
             break
         s += s1
     eintr_wrapper(os.close, r)
@@ -399,8 +414,9 @@ def spawn(executable, argv = None, cwd = None, env = None, close_fds = False,
     eintr_wrapper(os.waitpid, pid, 0)
     exc = pickle.loads(s)
     # XXX: sys.excepthook
-    #print exc.child_traceback
+    # print exc.child_traceback
     raise exc
+
 
 def poll(pid):
     """Check if the process already died. Returns the exit code or None if
@@ -410,9 +426,11 @@ def poll(pid):
         return r[1]
     return None
 
+
 def wait(pid):
     """Wait for process to die and return the exit code."""
     return eintr_wrapper(os.waitpid, pid, 0)[1]
+
 
 def get_user(user):
     "Take either an username or an uid, and return a tuple (user, uid, gid)."
@@ -430,11 +448,10 @@ def get_user(user):
     gid = pwd.getpwuid(uid)[3]
     return user, uid, gid
 
+
 # internal stuff, do not look!
 
 try:
     MAXFD = os.sysconf("SC_OPEN_MAX")
-except: # pragma: no cover
+except:  # pragma: no cover
     MAXFD = 256
-
-

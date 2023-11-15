@@ -5,7 +5,7 @@ import os, re, subprocess, sys
 import nemu.subprocess_
 from nemu.environ import *
 
-def process_ipcmd(str):
+def process_ipcmd(str: str):
     cur = None
     out = {}
     for line in str.split("\n"):

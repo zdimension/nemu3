@@ -6,6 +6,9 @@ import nemu, test_util
 import nemu.subprocess_ as sp
 import grp, os, pwd, signal, socket, sys, time, unittest
 
+from nemu import compat
+
+
 def _stat(path):
     try:
         return os.stat(path)
@@ -104,7 +107,7 @@ class TestSubprocess(unittest.TestCase):
         # uses a default search path
         self.assertRaises(OSError, sp.spawn, 'sleep', env = {'PATH': ''})
 
-        r, w = os.pipe()
+        r, w = compat.pipe()
         p = sp.spawn('/bin/echo', ['echo', 'hello world'], stdout = w)
         os.close(w)
         self.assertEqual(_readall(r), b"hello world\n")
@@ -120,8 +123,8 @@ class TestSubprocess(unittest.TestCase):
         # It cannot be wait()ed again.
         self.assertRaises(OSError, sp.wait, p)
 
-        r0, w0 = os.pipe()
-        r1, w1 = os.pipe()
+        r0, w0 = compat.pipe()
+        r1, w1 = compat.pipe()
         p = sp.spawn('/bin/cat', stdout = w0, stdin = r1, close_fds = [r0, w1])
         os.close(w0)
         os.close(r1)
@@ -140,25 +143,25 @@ class TestSubprocess(unittest.TestCase):
         self.assertRaises(ValueError, node.Subprocess,
                 ['/bin/sleep', '1000'], user = self.nouid)
         # Invalid CWD: it is a file
-        self.assertRaises(OSError, node.Subprocess,
+        self.assertRaises(NotADirectoryError, node.Subprocess,
                 '/bin/sleep', cwd = '/bin/sleep')
         # Invalid CWD: does not exist
-        self.assertRaises(OSError, node.Subprocess,
+        self.assertRaises(FileNotFoundError, node.Subprocess,
                 '/bin/sleep', cwd = self.nofile)
         # Exec failure
-        self.assertRaises(OSError, node.Subprocess, self.nofile)
+        self.assertRaises(FileNotFoundError, node.Subprocess, self.nofile)
         # Test that the environment is cleared: sleep should not be found
-        self.assertRaises(OSError, node.Subprocess,
+        self.assertRaises(FileNotFoundError, node.Subprocess,
                 'sleep', env = {'PATH': ''})
 
         # Argv
-        self.assertRaises(OSError, node.Subprocess, 'true; false')
+        self.assertRaises(FileNotFoundError, node.Subprocess, 'true; false')
         self.assertEqual(node.Subprocess('true').wait(), 0)
         self.assertEqual(node.Subprocess('true; false', shell = True).wait(),
                 1)
 
         # Piping
-        r, w = os.pipe()
+        r, w = compat.pipe()
         p = node.Subprocess(['echo', 'hello world'], stdout = w)
         os.close(w)
         self.assertEqual(_readall(r), b"hello world\n")
@@ -166,7 +169,7 @@ class TestSubprocess(unittest.TestCase):
         p.wait()
 
         # cwd
-        r, w = os.pipe()
+        r, w = compat.pipe()
         p = node.Subprocess('/bin/pwd', stdout = w, cwd = "/")
         os.close(w)
         self.assertEqual(_readall(r), b"/\n")
@@ -194,7 +197,7 @@ class TestSubprocess(unittest.TestCase):
         # closing stdout (so _readall finishes)
         cmd = 'trap "" TERM; echo; exec sleep 100 > /dev/null'
 
-        r, w = os.pipe()
+        r, w = compat.pipe()
         p = node.Subprocess(cmd, shell = True, stdout = w)
         os.close(w)
         self.assertEqual(_readall(r), b"\n") # wait for trap to be installed
@@ -202,9 +205,10 @@ class TestSubprocess(unittest.TestCase):
         pid = p.pid
         os.kill(pid, 0) # verify process still there
         # Avoid the warning about the process being killed
+        old_err = sys.stderr
         with open("/dev/null", "w") as sys.stderr:
             p.destroy()
-        sys.stderr = sys.__stderr__
+        sys.stderr = old_err
         self.assertRaises(OSError, os.kill, pid, 0) # should be dead by now
 
         p = node.Subprocess(['sleep', '100'])
@@ -217,8 +221,8 @@ class TestSubprocess(unittest.TestCase):
         node = nemu.Node(nonetns = True)
 
         # repeat test with Popen interface
-        r0, w0 = os.pipe()
-        r1, w1 = os.pipe()
+        r0, w0 = compat.pipe()
+        r1, w1 = compat.pipe()
         p = node.Popen('cat', stdout = w0, stdin = r1)
         os.close(w0)
         os.close(r1)
@@ -228,7 +232,7 @@ class TestSubprocess(unittest.TestCase):
         os.close(r0)
 
         # now with a socketpair, not using integers
-        (s0, s1) = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
+        (s0, s1) = compat.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
         p = node.Popen('cat', stdout = s0, stdin = s0)
         s0.close()
         s1.send(b"hello world\n")
@@ -255,9 +259,9 @@ class TestSubprocess(unittest.TestCase):
 
         p = node.Popen('cat >&2', shell = True, stdin = sp.PIPE,
                 stderr = sp.PIPE)
-        p.stdin.write("hello world\n")
+        p.stdin.write(b"hello world\n")
         p.stdin.close()
-        self.assertEqual(p.stderr.readlines(), ["hello world\n"])
+        self.assertEqual(p.stderr.readlines(), [b"hello world\n"])
         self.assertEqual(p.stdout, None)
         self.assertEqual(p.wait(), 0)
 
@@ -268,9 +272,9 @@ class TestSubprocess(unittest.TestCase):
         #
         p = node.Popen(['sh', '-c', 'cat >&2'],
                 stdin = sp.PIPE, stdout = sp.PIPE, stderr = sp.STDOUT)
-        p.stdin.write("hello world\n")
+        p.stdin.write(b"hello world\n")
         p.stdin.close()
-        self.assertEqual(p.stdout.readlines(), ["hello world\n"])
+        self.assertEqual(p.stdout.readlines(), [b"hello world\n"])
         self.assertEqual(p.stderr, None)
         self.assertEqual(p.wait(), 0)
 
@@ -281,9 +285,9 @@ class TestSubprocess(unittest.TestCase):
         #
         p = node.Popen(['tee', '/dev/stderr'],
                 stdin = sp.PIPE, stdout = sp.PIPE, stderr = sp.STDOUT)
-        p.stdin.write("hello world\n")
+        p.stdin.write(b"hello world\n")
         p.stdin.close()
-        self.assertEqual(p.stdout.readlines(), ["hello world\n"] * 2)
+        self.assertEqual(p.stdout.readlines(), [b"hello world\n"] * 2)
         self.assertEqual(p.stderr, None)
         self.assertEqual(p.wait(), 0)
 
@@ -295,10 +299,10 @@ class TestSubprocess(unittest.TestCase):
         #
         p = node.Popen(['tee', '/dev/stderr'],
                 stdin = sp.PIPE, stdout = sp.PIPE, stderr = sp.PIPE)
-        p.stdin.write("hello world\n")
+        p.stdin.write(b"hello world\n")
         p.stdin.close()
-        self.assertEqual(p.stdout.readlines(), ["hello world\n"])
-        self.assertEqual(p.stderr.readlines(), ["hello world\n"])
+        self.assertEqual(p.stdout.readlines(), [b"hello world\n"])
+        self.assertEqual(p.stderr.readlines(), [b"hello world\n"])
         self.assertEqual(p.wait(), 0)
 
         p = node.Popen(['tee', '/dev/stderr'],

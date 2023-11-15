@@ -27,6 +27,7 @@ import weakref
 import nemu.interface
 import nemu.protocol
 import nemu.subprocess_
+from nemu import compat
 from nemu.environ import *
 
 __all__ = ['Node', 'get_nodes', 'import_if']
@@ -195,7 +196,7 @@ class Node(object):
 # Requires CAP_SYS_ADMIN privileges to run.
 def _start_child(nonetns) -> (socket.socket, int):
     # Create socket pair to communicate
-    (s0, s1) = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
+    (s0, s1) = compat.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
     # Spawn a child that will run in a loop
     pid = os.fork()
     if pid:

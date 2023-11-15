@@ -6,14 +6,16 @@ import nemu.protocol
 import os, socket, sys, threading, unittest
 
 import test_util
+from nemu import compat
 
 
 class TestServer(unittest.TestCase):
+    @test_util.skip("python 3 can't makefile a socket in r+")
     def test_server_startup(self):
         # Test the creation of the server object with different ways of passing
         # the file descriptor; and check the banner.
-        (s0, s1) = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
-        (s2, s3) = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
+        (s0, s1) = compat.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
+        (s2, s3) = compat.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
 
         def test_help(fd):
             fd.write("HELP\n")
@@ -34,13 +36,13 @@ class TestServer(unittest.TestCase):
         t = threading.Thread(target = run_server)
         t.start()
 
-        s = os.fdopen(s1.fileno(), "r+", 1)
+        s = os.fdopen(s1.fileno(), "r", 1)
         self.assertEqual(s.readline()[0:4], "220 ")
         test_help(s)
         s.close()
         s0.close()
 
-        s = os.fdopen(s3.fileno(), "r+", 1)
+        s = os.fdopen(s3.fileno(), "r", 1)
         self.assertEqual(s.readline()[0:4], "220 ")
         test_help(s)
         s.close()
@@ -48,7 +50,7 @@ class TestServer(unittest.TestCase):
         t.join()
 
     def test_server_clean(self):
-        (s0, s1) = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
+        (s0, s1) = compat.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
 
         def run_server():
             nemu.protocol.Server(s0, s0).run()
@@ -56,8 +58,9 @@ class TestServer(unittest.TestCase):
         t.start()
 
         cli = nemu.protocol.Client(s1, s1)
-        argv = [ '/bin/sh', '-c', 'yes' ] 
-        pid = cli.spawn(argv, stdout = subprocess.DEVNULL)
+        argv = [ '/bin/sh', '-c', 'yes' ]
+        nullfd = open("/dev/null", "wb")
+        pid = cli.spawn(argv, stdout = nullfd.fileno())
         self.assertTrue(os.path.exists("/proc/%d" % pid))
         # try to exit while there are still processes running
         cli.shutdown()
@@ -68,7 +71,7 @@ class TestServer(unittest.TestCase):
         self.assertFalse(os.path.exists("/proc/%d" % pid))
 
     def test_spawn_recovery(self):
-        (s0, s1) = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
+        (s0, s1) = compat.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
 
         def run_server():
             nemu.protocol.Server(s0, s0).run()
@@ -93,7 +96,7 @@ class TestServer(unittest.TestCase):
 
     @test_util.skip("python 3 can't makefile a socket in r+")
     def test_basic_stuff(self):
-        (s0, s1) = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
+        (s0, s1) = compat.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
         srv = nemu.protocol.Server(s0, s0)
         s1 = s1.makefile("r+", 1)
 

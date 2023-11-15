@@ -33,6 +33,7 @@ from pickle import loads, dumps
 
 import nemu.iproute
 import nemu.subprocess_
+from nemu import compat
 from nemu.environ import *
 
 # ============================================================================
@@ -47,57 +48,59 @@ from nemu.environ import *
 # The format string is a chain of "s" for string and "i" for integer
 
 _proto_commands = {
-        "QUIT": { None: ("", "") },
-        "HELP": { None: ("", "") },
-        "X11":  {
-            "SET":  ("ss", ""),
-            "SOCK": ("", "")
-            },
-        "IF": {
-            "LIST": ("", "i"),
-            "SET":  ("iss", "s*"),
-            "RTRN": ("ii", ""),
-            "DEL":  ("i", "")
-            },
-        "ADDR": {
-            "LIST": ("", "i"),
-            "ADD":  ("isi", "s"),
-            "DEL":  ("iss", "s")
-            },
-        "ROUT": {
-            "LIST": ("", ""),
-            "ADD":  ("bbibii", ""),
-            "DEL":  ("bbibii", "")
-            },
-        "PROC": {
-            "CRTE": ("b", "b*"),
-            "POLL": ("i", ""),
-            "WAIT": ("i", ""),
-            "KILL": ("i", "i")
-            },
-        }
+    "QUIT": {None: ("", "")},
+    "HELP": {None: ("", "")},
+    "X11": {
+        "SET": ("ss", ""),
+        "SOCK": ("", "")
+    },
+    "IF": {
+        "LIST": ("", "i"),
+        "SET": ("iss", "s*"),
+        "RTRN": ("ii", ""),
+        "DEL": ("i", "")
+    },
+    "ADDR": {
+        "LIST": ("", "i"),
+        "ADD": ("isi", "s"),
+        "DEL": ("iss", "s")
+    },
+    "ROUT": {
+        "LIST": ("", ""),
+        "ADD": ("bbibii", ""),
+        "DEL": ("bbibii", "")
+    },
+    "PROC": {
+        "CRTE": ("b", "b*"),
+        "POLL": ("i", ""),
+        "WAIT": ("i", ""),
+        "KILL": ("i", "i")
+    },
+}
 # Commands valid only after PROC CRTE
 _proc_commands = {
-        "HELP": { None: ("", "") },
-        "QUIT": { None: ("", "") },
-        "PROC": {
-            "USER": ("b", ""),
-            "CWD":  ("b", ""),
-            "ENV":  ("bb", "b*"),
-            "SIN":  ("", ""),
-            "SOUT": ("", ""),
-            "SERR": ("", ""),
-            "RUN":  ("", ""),
-            "ABRT": ("", ""),
-            }
-        }
+    "HELP": {None: ("", "")},
+    "QUIT": {None: ("", "")},
+    "PROC": {
+        "USER": ("b", ""),
+        "CWD": ("b", ""),
+        "ENV": ("bb", "b*"),
+        "SIN": ("", ""),
+        "SOUT": ("", ""),
+        "SERR": ("", ""),
+        "RUN": ("", ""),
+        "ABRT": ("", ""),
+    }
+}
 
-KILL_WAIT = 3 # seconds
+KILL_WAIT = 3  # seconds
+
 
 class Server(object):
     """Class that implements the communication protocol and dispatches calls
     to the required functions. Also works as the main loop for the slave
     process."""
+
     def __init__(self, rfd: socket.socket, wfd: socket.socket):
         debug("Server(0x%x).__init__()" % id(self))
         # Dictionary of valid commands
@@ -129,11 +132,11 @@ class Server(object):
                 ch = set(self._children)
                 for pid in ch:
                     try:
-                       if nemu.subprocess_.poll(pid):
-                           self._children.remove(pid)
+                        if nemu.subprocess_.poll(pid):
+                            self._children.remove(pid)
                     except OSError as e:
                         if e.errno == errno.ECHILD:
-                           self._children.remove(pid)
+                            self._children.remove(pid)
                         else:
                             raise
                 if not ch:
@@ -160,7 +163,7 @@ class Server(object):
     def reply(self, code, text):
         "Send back a reply to the client; handle multiline messages"
         if type(text) != list:
-            text = [ text ]
+            text = [text]
         clean = []
         # Split lines with embedded \n
         for i in text:
@@ -212,7 +215,7 @@ class Server(object):
         cmd2 = None
         subcommands = self._commands[cmd1]
 
-        if list(subcommands.keys()) != [ None ]:
+        if list(subcommands.keys()) != [None]:
             if len(args) < 1:
                 self.reply(500, "Incomplete command.")
                 return None
@@ -232,7 +235,7 @@ class Server(object):
             cmdname = cmd1
             funcname = "do_%s" % cmd1
 
-        if not hasattr(self, funcname): # pragma: no cover
+        if not hasattr(self, funcname):  # pragma: no cover
             self.reply(500, "Not implemented.")
             return None
 
@@ -253,7 +256,7 @@ class Server(object):
                     args[i] = int(args[i])
                 except:
                     self.reply(500, "Invalid parameter %s: must be an integer."
-                            % args[i])
+                               % args[i])
                     return None
             elif argstemplate[j] == 'b':
                 try:
@@ -261,7 +264,7 @@ class Server(object):
                 except TypeError:
                     self.reply(500, "Invalid parameter: not base-64 encoded.")
                     return None
-            elif argstemplate[j] != 's': # pragma: no cover
+            elif argstemplate[j] != 's':  # pragma: no cover
                 raise RuntimeError("Invalid argument template: %s" % argstemplate)
             # Nothing done for "s" parameters
             j += 1
@@ -283,9 +286,9 @@ class Server(object):
             except:
                 (t, v, tb) = sys.exc_info()
                 v.child_traceback = "".join(
-                        traceback.format_exception(t, v, tb))
+                    traceback.format_exception(t, v, tb))
                 self.reply(550, ["# Exception data follows:",
-                    _b64(dumps(v, protocol = 2))])
+                                 _b64(dumps(v, protocol=2))])
         try:
             self._rfd.close()
             self._wfd.close()
@@ -312,7 +315,7 @@ class Server(object):
         self._closed = True
 
     def do_PROC_CRTE(self, cmdname, executable, *argv):
-        self._proc = { 'executable': executable, 'argv': argv }
+        self._proc = {'executable': executable, 'argv': argv}
         self._commands = _proc_commands
         self.reply(200, "Entering PROC mode.")
 
@@ -327,18 +330,18 @@ class Server(object):
     def do_PROC_ENV(self, cmdname, *env):
         if len(env) % 2:
             self.reply(500,
-                    "Invalid number of arguments for PROC ENV: must be even.")
+                       "Invalid number of arguments for PROC ENV: must be even.")
             return
         self._proc['env'] = {}
-        for i in range(len(env)//2):
+        for i in range(len(env) // 2):
             self._proc['env'][env[i * 2]] = env[i * 2 + 1]
 
         self.reply(200, "%d environment definition(s) read." % (len(env) // 2))
 
     def do_PROC_SIN(self, cmdname):
         self.reply(354,
-                "Pass the file descriptor now, with `%s\\n' as payload." %
-                cmdname)
+                   "Pass the file descriptor now, with `%s\\n' as payload." %
+                   cmdname)
         try:
             fd, payload = passfd.recvfd(self._rfd, len(cmdname) + 1)
         except (IOError, RuntimeError) as e:
@@ -358,12 +361,12 @@ class Server(object):
 
     def do_PROC_RUN(self, cmdname):
         params = self._proc
-        params['close_fds'] = True # forced
+        params['close_fds'] = True  # forced
         self._proc = None
         self._commands = _proto_commands
 
         if 'env' not in params:
-            params['env'] = dict(os.environ) # copy
+            params['env'] = dict(os.environ)  # copy
 
         xauth = None
         if self._xfwd:
@@ -375,8 +378,8 @@ class Server(object):
                 # stupid xauth format: needs the 'hostname' for local
                 # connections
                 execute([XAUTH_PATH, "-f", xauth, "add",
-                    "%s/unix:%d" % (socket.gethostname(), display),
-                    protoname, hexkey])
+                         "%s/unix:%d" % (socket.gethostname(), display),
+                         protoname, hexkey])
                 if user:
                     user, uid, gid = nemu.subprocess_.get_user(user)
                     os.chown(xauth, uid, gid)
@@ -446,18 +449,18 @@ class Server(object):
             os.kill(-pid, signal.SIGTERM)
         self.reply(200, "Process signalled.")
 
-    def do_IF_LIST(self, cmdname, ifnr = None):
+    def do_IF_LIST(self, cmdname, ifnr=None):
         if ifnr == None:
             ifdata = nemu.iproute.get_if_data()[0]
         else:
             ifdata = nemu.iproute.get_if(ifnr)
         self.reply(200, ["# Interface data follows.",
-                _b64(dumps(ifdata, protocol = 2))])
+                         _b64(dumps(ifdata, protocol=2))])
 
     def do_IF_SET(self, cmdname, ifnr, *args):
         if len(args) % 2:
             self.reply(500,
-                    "Invalid number of arguments for IF SET: must be even.")
+                       "Invalid number of arguments for IF SET: must be even.")
             return
         d = {'index': ifnr}
         for i in range(len(args) // 2):
@@ -475,15 +478,15 @@ class Server(object):
         nemu.iproute.del_if(ifnr)
         self.reply(200, "Done.")
 
-    def do_ADDR_LIST(self, cmdname, ifnr = None):
+    def do_ADDR_LIST(self, cmdname, ifnr=None):
         addrdata = nemu.iproute.get_addr_data()[0]
         if ifnr != None:
             addrdata = addrdata[ifnr]
         self.reply(200, ["# Address data follows.",
-            _b64(dumps(addrdata, protocol = 2))])
+                         _b64(dumps(addrdata, protocol=2))])
 
-    def do_ADDR_ADD(self, cmdname, ifnr, address, prefixlen, broadcast = None):
-        if address.find(":") < 0: # crude, I know
+    def do_ADDR_ADD(self, cmdname, ifnr, address, prefixlen, broadcast=None):
+        if address.find(":") < 0:  # crude, I know
             a = nemu.iproute.ipv4address(address, prefixlen, broadcast)
         else:
             a = nemu.iproute.ipv6address(address, prefixlen)
@@ -491,7 +494,7 @@ class Server(object):
         self.reply(200, "Done.")
 
     def do_ADDR_DEL(self, cmdname, ifnr, address, prefixlen):
-        if address.find(":") < 0: # crude, I know
+        if address.find(":") < 0:  # crude, I know
             a = nemu.iproute.ipv4address(address, prefixlen, None)
         else:
             a = nemu.iproute.ipv6address(address, prefixlen)
@@ -501,18 +504,18 @@ class Server(object):
     def do_ROUT_LIST(self, cmdname):
         rdata = nemu.iproute.get_route_data()
         self.reply(200, ["# Routing data follows.",
-            _b64(dumps(rdata, protocol = 2))])
+                         _b64(dumps(rdata, protocol=2))])
 
     def do_ROUT_ADD(self, cmdname, tipe, prefix, prefixlen, nexthop, ifnr,
-            metric):
+                    metric):
         nemu.iproute.add_route(nemu.iproute.route(tipe, prefix, prefixlen,
-            nexthop, ifnr or None, metric))
+                                                  nexthop, ifnr or None, metric))
         self.reply(200, "Done.")
 
     def do_ROUT_DEL(self, cmdname, tipe, prefix, prefixlen, nexthop, ifnr,
-            metric):
+                    metric):
         nemu.iproute.del_route(nemu.iproute.route(tipe, prefix, prefixlen,
-            nexthop, ifnr or None, metric))
+                                                  nexthop, ifnr or None, metric))
         self.reply(200, "Done.")
 
     def do_X11_SET(self, cmdname, protoname, hexkey):
@@ -521,15 +524,15 @@ class Server(object):
             return
         skt, port = None, None
         try:
-            skt, port = find_listen_port(min_port = 6010, max_port = 6099)
+            skt, port = find_listen_port(min_port=6010, max_port=6099)
         except:
             self.reply(500, "Cannot allocate a port for X forwarding.")
             return
         display = port - 6000
 
         self.reply(200, "Socket created on port %d. Use X11 SOCK to get the "
-                "file descriptor "
-                "(fixed 1-byte payload before protocol response).")
+                        "file descriptor "
+                        "(fixed 1-byte payload before protocol response).")
         self._xfwd = display, protoname, hexkey
         self._xsock = skt
 
@@ -548,6 +551,7 @@ class Server(object):
         self._xsock = None
         self.reply(200, "Will set up X forwarding.")
 
+
 # ============================================================================
 #
 # Client-side protocol implementation.
@@ -555,6 +559,7 @@ class Server(object):
 class Client(object):
     """Client-side implementation of the communication protocol. Acts as a RPC
     service."""
+
     def __init__(self, rfd: socket.socket, wfd: socket.socket):
         debug("Client(0x%x).__init__()" % id(self))
         self._rfd_socket = rfd
@@ -569,7 +574,7 @@ class Client(object):
         debug("Client(0x%x).__del__()" % id(self))
         self.shutdown()
 
-    def _send_cmd(self, *args: str):
+    def _send_cmd(self, *args: str | int):
         if not self._wfd:
             raise RuntimeError("Client already shut down.")
         s = " ".join(map(str, args)) + "\n"
@@ -595,12 +600,12 @@ class Client(object):
                 break
         return (int(status), "\n".join(text))
 
-    def _read_and_check_reply(self, expected = 2):
+    def _read_and_check_reply(self, expected=2):
         """Reads a response and raises an exception if the first digit of the
         code is not the expected value. If expected is not specified, it
         defaults to 2."""
         code, text = self._read_reply()
-        if code == 550: # exception
+        if code == 550:  # exception
             e = loads(_db64(text.partition("\n")[2]))
             sys.stderr.write(e.child_traceback)
             raise e
@@ -620,7 +625,7 @@ class Client(object):
         self._rfd_socket.close()
         self._rfd = None
         self._wfd.close()
-        self._rfd_socket.close()
+        self._wfd_socket.close()
         self._wfd = None
         if self._forwarder:
             os.kill(self._forwarder, signal.SIGTERM)
@@ -640,9 +645,9 @@ class Client(object):
             raise
         self._read_and_check_reply()
 
-    def spawn(self, argv, executable = None,
-            stdin = None, stdout = None, stderr = None,
-            cwd = None, env = None, user = None):
+    def spawn(self, argv, executable=None,
+              stdin=None, stdout=None, stderr=None,
+              cwd=None, env=None, user=None):
         """Start a subprocess in the slave; the interface resembles
         subprocess.Popen, but with less functionality. In particular
         stdin/stdout/stderr can only be None or a open file descriptor.
@@ -675,10 +680,13 @@ class Client(object):
                 self._read_and_check_reply()
 
             if stdin != None:
+                os.set_inheritable(stdin, True)
                 self._send_fd("SIN", stdin)
             if stdout != None:
+                os.set_inheritable(stdout, True)
                 self._send_fd("SOUT", stdout)
             if stderr != None:
+                os.set_inheritable(stderr, True)
                 self._send_fd("SERR", stderr)
         except:
             self._send_cmd("PROC", "ABRT")
@@ -711,16 +719,16 @@ class Client(object):
         exitcode = int(text.split()[0])
         return exitcode
 
-    def signal(self, pid, sig = signal.SIGTERM):
+    def signal(self, pid, sig=signal.SIGTERM):
         """Equivalent to Popen.send_signal(). Sends a signal to the child
         process; signal defaults to SIGTERM."""
         if sig:
-            self._send_cmd("PROC", "KILL", pid, sig)
+            self._send_cmd("PROC", "KILL", pid, int(sig))
         else:
             self._send_cmd("PROC", "KILL", pid)
         self._read_and_check_reply()
 
-    def get_if_data(self, ifnr = None):
+    def get_if_data(self, ifnr=None):
         if ifnr:
             self._send_cmd("IF", "LIST", ifnr)
         else:
@@ -746,7 +754,7 @@ class Client(object):
         self._send_cmd("IF", "RTRN", ifnr, netns)
         self._read_and_check_reply()
 
-    def get_addr_data(self, ifnr = None):
+    def get_addr_data(self, ifnr=None):
         if ifnr:
             self._send_cmd("ADDR", "LIST", ifnr)
         else:
@@ -757,10 +765,10 @@ class Client(object):
     def add_addr(self, ifnr, address):
         if hasattr(address, "broadcast") and address.broadcast:
             self._send_cmd("ADDR", "ADD", ifnr, address.address,
-                    address.prefix_len, address.broadcast)
+                           address.prefix_len, address.broadcast)
         else:
             self._send_cmd("ADDR", "ADD", ifnr, address.address,
-                    address.prefix_len)
+                           address.prefix_len)
         self._read_and_check_reply()
 
     def del_addr(self, ifnr, address):
@@ -793,15 +801,15 @@ class Client(object):
         self._send_cmd("X11", "SOCK")
         fd, payload = passfd.recvfd(self._rfd, 1)
         self._read_and_check_reply()
-        skt = socket.fromfd(fd, socket.AF_INET, socket.SOCK_DGRAM)
-        os.close(fd) # fromfd dup()'s
+        skt = compat.fromfd(fd, socket.AF_INET, socket.SOCK_DGRAM)
+        os.close(fd)  # fromfd dup()'s
         return skt
 
     def enable_x11_forwarding(self):
         xinfo = _parse_display()
         if not xinfo:
             raise RuntimeError("Impossible to forward X: DISPLAY variable not "
-                    "set or invalid")
+                               "set or invalid")
         xauthdpy, sock, addr = xinfo
         if not XAUTH_PATH:
             raise RuntimeError("Impossible to forward X: xauth not present")
@@ -814,24 +822,44 @@ class Client(object):
         server = self.set_x11(protoname, hexkey)
         self._forwarder = _spawn_x11_forwarder(server, sock, addr)
 
-def _b64(text: str | bytes) -> str:
+
+def _b64_OLD(text: str | bytes) -> str:
     if text == None:
         # easier this way
         text = ''
     if type(text) is str:
         btext = text.encode("utf-8")
+    elif type(text) is bytes:
+        btext = text
     else:
         btext = text
-    if len(text) == 0 or any(x for x in btext if x <= ord(" ") or
-            x > ord("z") or x == ord("=")):
+    if len(btext) == 0 or any(x for x in btext if x <= ord(" ") or
+                                                 x > ord("z") or x == ord("=")):
         return "=" + base64.b64encode(btext).decode("ascii")
     else:
         return text
+
+def _b64(text) -> str:
+    if text is None:
+        # easier this way
+        return "="
+
+    if type(text) is bytes:
+        enc = text
+    else:
+        enc = str(text).encode("utf-8")
+    if len(enc) == 0 or any(x for x in enc if x <= ord(" ") or
+                                                 x > ord("z") or x == ord("=")):
+        return "=" + base64.b64encode(enc).decode("ascii")
+    else:
+        return enc.decode("utf-8")
+
 
 def _db64(text: str) -> bytes:
     if not text or text[0] != '=':
         return text.encode("utf-8")
     return base64.b64decode(text[1:])
+
 
 def _get_file(fd, mode):
     # Since fdopen insists on closing the fd on destruction, I need to dup()
@@ -840,6 +868,7 @@ def _get_file(fd, mode):
     else:
         nfd = os.dup(fd)
     return os.fdopen(nfd, mode, 1)
+
 
 def _parse_display():
     if "DISPLAY" not in os.environ:
@@ -863,9 +892,10 @@ def _parse_display():
         xauthdpy = "unix:%s" % number
     return xauthdpy, sock, addr
 
+
 def _spawn_x11_forwarder(server, xsock, xaddr):
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.listen(10) # arbitrary
+    server.listen(10)  # arbitrary
     pid = os.fork()
     if pid:
         return pid
@@ -875,6 +905,7 @@ def _spawn_x11_forwarder(server, xsock, xaddr):
     except:
         traceback.print_exc(file=sys.stderr)
     os._exit(1)
+
 
 def _x11_forwarder(server, xsock, xaddr):
     def clean(idx, toread, fd):
@@ -896,30 +927,30 @@ def _x11_forwarder(server, xsock, xaddr):
         if fd2 in toread:
             toread.remove(fd2)
 
-    toread = set([server])
+    toread = {server}
     idx = {}
-    while(True):
+    while True:
         towrite = [x["wr"] for x in idx.values() if x["buf"]]
         (rr, wr, er) = select.select(toread, towrite, [])
 
         if server in rr:
-            xconn = socket.socket(*xsock)
+            xconn = compat.socket(*xsock)
             xconn.connect(xaddr)
             client, addr = server.accept()
             toread.add(client)
             toread.add(xconn)
             idx[client] = {
-                    "rd":       client,
-                    "wr":       xconn,
-                    "buf":      [],
-                    "closed":   False
-                    }
+                "rd": client,
+                "wr": xconn,
+                "buf": [],
+                "closed": False
+            }
             idx[xconn] = {
-                    "rd":       xconn,
-                    "wr":       client,
-                    "buf":      [],
-                    "closed":   False
-                    }
+                "rd": xconn,
+                "wr": client,
+                "buf": [],
+                "closed": False
+            }
             continue
 
         for fd in rr:
@@ -944,7 +975,7 @@ def _x11_forwarder(server, xsock, xaddr):
                     try:
                         chan["wr"].shutdown(socket.SHUT_WR)
                     except:
-                        pass # might fail sometimes
+                        pass  # might fail sometimes
             else:
                 chan["buf"].append(s)
 

@@ -40,7 +40,7 @@ class Interface(object):
     def _gen_if_name():
         n = Interface._gen_next_id()
         # Max 15 chars
-        return "NETNSif-%.4x%.3x" % (os.getpid() % 0xffff, n)
+        return "NETNSif-%.4x%.3x" % (os.getpid() & 0xffff, n)
 
     def __init__(self, index):
         self._idx = index
@@ -386,7 +386,7 @@ class Switch(ExternalInterface):
     def _gen_br_name():
         n = Switch._gen_next_id()
         # Max 15 chars
-        return "NETNSbr-%.4x%.3x" % (os.getpid() % 0xffff, n)
+        return "NETNSbr-%.4x%.3x" % (os.getpid() & 0xffff, n)
 
     def __init__(self, **args):
         """Creates a new Switch object, which models a linux bridge device.
