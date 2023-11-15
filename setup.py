@@ -6,12 +6,12 @@ from distutils.core import setup, Extension, Command
 
 setup(
         name        = 'nemu',
-        version     = '0.3.1',
+        version     = '0.4',
         description = 'A lightweight network emulator embedded in a small '
                       'python library.',
-        author      = 'Martina Ferrari, Alina Quereilhac',
-        author_email = 'tina@tina.pm, aquereilhac@gmail.com',
-        url         = 'https://github.com/NightTsarina/nemu',
+        author      = 'Martina Ferrari, Alina Quereilhac, Tom Niget',
+        author_email = 'tina@tina.pm, aquereilhac@gmail.com, tom.niget@nexedi.com',
+        url         = 'https://github.com/zdimensin/nemu3',
         license     = 'GPLv2',
         platforms   = 'Linux',
         packages    = ['nemu'],

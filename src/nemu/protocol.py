@@ -20,7 +20,6 @@
 import base64
 import errno
 import os
-import passfd
 import re
 import select
 import signal
@@ -33,7 +32,7 @@ from pickle import loads, dumps
 
 import nemu.iproute
 import nemu.subprocess_
-from nemu import compat
+from nemu import compat, passfd
 from nemu.environ import *
 
 # ============================================================================
