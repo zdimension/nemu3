@@ -26,7 +26,7 @@ def __check_socket(sock: socket.socket | IOBase):
         raise ValueError("Only AF_UNIX sockets are allowed")
 
     if hasattr(sock, 'fileno'):
-        sock = socket.socket(fileno=sock.fileno())
+        sock = socket.fromfd(sock.fileno(), family=socket.AF_UNIX, type=socket.SOCK_STREAM)
 
     if not isinstance(sock, socket.socket):
         raise TypeError("An socket object or file descriptor was expected")
@@ -45,34 +45,8 @@ def __check_fd(fd):
 
 
 def recvfd(sock: socket.socket | IOBase, msg_buf: int = 4096):
-    """
-    import _passfd
-    (ret, msg) = _passfd.recvfd(__check_socket(sock), msg_buf)
-
-    # -1 should raise OSError
-    if ret == -2:
-        raise RuntimeError("The message received did not contain exactly one" +
-                " file descriptor")
-    if ret == -3:
-        raise RuntimeError("The received file descriptor is not valid")
-    assert ret >= 0
-
-    return (ret, msg)
-    """
-    """
     size = struct.calcsize("@i")
-+        with socket.fromfd(conn.fileno(), socket.AF_UNIX, socket.SOCK_STREAM) as s:
-+            msg, ancdata, flags, addr = s.recvmsg(1, socket.CMSG_LEN(size))
-+            try:
-+                cmsg_level, cmsg_type, cmsg_data = ancdata[0]
-+                if (cmsg_level == socket.SOL_SOCKET and
-+                    cmsg_type == socket.SCM_RIGHTS):
-+                    return struct.unpack("@i", cmsg_data[:size])[0]
-+            except (ValueError, IndexError, struct.error):
-+                pass
-+            raise RuntimeError('Invalid data received')"""
-    size = struct.calcsize("@i")
-    msg, ancdata, flags, addr = __check_socket(sock).recvmsg(4096, socket.CMSG_LEN(size))
+    msg, ancdata, flags, addr = __check_socket(sock).recvmsg(msg_buf, socket.CMSG_SPACE(size))
     cmsg_level, cmsg_type, cmsg_data = ancdata[0]
     if not (cmsg_level == socket.SOL_SOCKET and cmsg_type == socket.SCM_RIGHTS):
         raise RuntimeError("The message received did not contain exactly one" +
@@ -86,10 +60,6 @@ def recvfd(sock: socket.socket | IOBase, msg_buf: int = 4096):
 
 
 def sendfd(sock: socket.socket | IOBase, fd: int, message: bytes = b"NONE"):
-    """
-    import _passfd
-    return _passfd.sendfd(__check_socket(sock), __check_fd(fd), message)
-    """
     return __check_socket(sock).sendmsg(
         [message],
         [(socket.SOL_SOCKET, socket.SCM_RIGHTS, struct.pack("@i", fd))])
