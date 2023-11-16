@@ -385,7 +385,7 @@ def create_if_pair(if1: interface, if2: interface) -> tuple[interface, interface
     return interfaces[if1.name], interfaces[if2.name]
 
 
-def del_if(iface):
+def del_if(iface: interface | int | str):
     ifname = _get_if_name(iface)
     execute([IP_PATH, "link", "del", ifname])
 

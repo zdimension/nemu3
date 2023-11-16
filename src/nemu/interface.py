@@ -237,7 +237,7 @@ class ImportedNodeInterface(NSInterface):
     On destruction, the interface will be restored to the original name space
     and will try to restore the original state."""
 
-    def __init__(self, node: "nemu.Node", iface, migrate=True):
+    def __init__(self, node: "nemu.Node", iface: nemu.iproute.interface, migrate=True):
         self._slave = None
         self._migrate = migrate
         if self._migrate:

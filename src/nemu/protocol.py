@@ -29,7 +29,7 @@ import tempfile
 import time
 import traceback
 from pickle import loads, dumps
-from typing import Literal
+from typing import Literal, Optional
 
 import nemu.iproute
 import nemu.subprocess_
@@ -645,7 +645,7 @@ class Client(object):
             raise
         self._read_and_check_reply()
 
-    def spawn(self, argv, executable=None,
+    def spawn(self, argv: list[str], executable: str = None,
               stdin=None, stdout=None, stderr=None,
               cwd=None, env=None, user=None):
         """Start a subprocess in the slave; the interface resembles
@@ -698,7 +698,7 @@ class Client(object):
 
         return pid
 
-    def poll(self, pid):
+    def poll(self, pid: int) -> Optional[int]:
         """Equivalent to Popen.poll(), checks if the process has finished.
         Returns the exitcode if finished, None otherwise."""
         self._send_cmd("PROC", "POLL", pid)
@@ -711,7 +711,7 @@ class Client(object):
         else:
             raise RuntimeError("Error on command: %d %s" % (code, text))
 
-    def wait(self, pid):
+    def wait(self, pid: int) -> int:
         """Equivalent to Popen.wait(). Waits for the process to finish and
         returns the exitcode."""
         self._send_cmd("PROC", "WAIT", pid)
@@ -719,7 +719,7 @@ class Client(object):
         exitcode = int(text.split()[0])
         return exitcode
 
-    def signal(self, pid, sig=signal.SIGTERM):
+    def signal(self, pid: int, sig=signal.SIGTERM):
         """Equivalent to Popen.send_signal(). Sends a signal to the child
         process; signal defaults to SIGTERM."""
         if sig:
@@ -728,7 +728,7 @@ class Client(object):
             self._send_cmd("PROC", "KILL", pid)
         self._read_and_check_reply()
 
-    def get_if_data(self, ifnr=None):
+    def get_if_data(self, ifnr=None) -> dict[int, nemu.iproute.interface] | nemu.iproute.interface:
         if ifnr:
             self._send_cmd("IF", "LIST", ifnr)
         else:
@@ -736,7 +736,7 @@ class Client(object):
         data = self._read_and_check_reply()
         return loads(_db64(data.partition("\n")[2]))
 
-    def set_if(self, interface):
+    def set_if(self, interface: nemu.iproute.interface):
         cmd = ["IF", "SET", interface.index]
         for k in interface.changeable_attributes:
             v = getattr(interface, k)
@@ -746,15 +746,15 @@ class Client(object):
         self._send_cmd(*cmd)
         self._read_and_check_reply()
 
-    def del_if(self, ifnr):
+    def del_if(self, ifnr: int):
         self._send_cmd("IF", "DEL", ifnr)
         self._read_and_check_reply()
 
-    def change_netns(self, ifnr, netns):
+    def change_netns(self, ifnr: int, netns: int):
         self._send_cmd("IF", "RTRN", ifnr, netns)
         self._read_and_check_reply()
 
-    def get_addr_data(self, ifnr=None):
+    def get_addr_data(self, ifnr: int = None):
         if ifnr:
             self._send_cmd("ADDR", "LIST", ifnr)
         else:
@@ -775,15 +775,15 @@ class Client(object):
         self._send_cmd("ADDR", "DEL", ifnr, address.address, address.prefix_len)
         self._read_and_check_reply()
 
-    def get_route_data(self):
+    def get_route_data(self) -> list[nemu.iproute.route]:
         self._send_cmd("ROUT", "LIST")
         data = self._read_and_check_reply()
         return loads(_db64(data.partition("\n")[2]))
 
-    def add_route(self, route):
+    def add_route(self, route: nemu.iproute.route):
         self._add_del_route("ADD", route)
 
-    def del_route(self, route):
+    def del_route(self, route: nemu.iproute.route):
         self._add_del_route("DEL", route)
 
     def _add_del_route(self, action: Literal["ADD", "DEL"], route: nemu.iproute.route):

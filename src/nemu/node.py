@@ -39,6 +39,7 @@ class Node(object):
     _nodes: MutableMapping[int, "Node"] = weakref.WeakValueDictionary()
     _nextnode = 0
     _processes: MutableMapping[int, nemu.subprocess_.Subprocess]
+    _interfaces: MutableMapping[int, nemu.interface.Interface]
     @staticmethod
     def get_nodes() -> list["Node"]:
         s = sorted(list(Node._nodes.items()), key = lambda x: x[0])
@@ -98,7 +99,7 @@ class Node(object):
         self._pid = self._slave = None
 
     @property
-    def pid(self):
+    def pid(self) -> int:
         return self._pid
 
     # Subprocesses
@@ -121,7 +122,7 @@ class Node(object):
         return nemu.subprocess_.backticks_raise(self, *kargs, **kwargs)
 
     # Interfaces
-    def _add_interface(self, interface):
+    def _add_interface(self, interface: nemu.interface.Interface):
         self._interfaces[interface.index] = interface
 
     def add_if(self, **kwargs):
@@ -142,18 +143,18 @@ class Node(object):
             setattr(i, k, v)
         return i
 
-    def import_if(self, interface):
+    def import_if(self, interface: nemu.iproute.interface):
         return nemu.interface.ImportedNodeInterface(self, interface)
 
-    def del_if(self, iface):
+    def del_if(self, iface: nemu.interface.Interface):
         """Doesn't destroy the interface if it wasn't created by us."""
         del self._interfaces[iface.index]
         iface.destroy()
 
-    def get_interface(self, name):
+    def get_interface(self, name: str):
         return [i for i in self.get_interfaces() if i.name == name][0]
 
-    def get_interfaces(self):
+    def get_interfaces(self) -> list[nemu.interface.Interface]:
         if not self._slave:
             return []
         ifaces = self._slave.get_if_data()

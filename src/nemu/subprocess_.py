@@ -27,9 +27,9 @@ import signal
 import sys
 import time
 import traceback
-import typing
+from typing import TYPE_CHECKING, Optional
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from nemu import Node
 from nemu import compat
 from nemu.environ import eintr_wrapper
@@ -106,14 +106,14 @@ class Subprocess(object):
         """The real process ID of this subprocess."""
         return self._pid
 
-    def poll(self):
+    def poll(self) -> Optional[int]:
         """Checks status of program, returns exitcode or None if still running.
         See Popen.poll."""
         if self._returncode is None:
             self._returncode = self._slave.poll(self._pid)
         return self.returncode
 
-    def wait(self):
+    def wait(self) -> int:
         """Waits for program to complete and returns the exitcode.
         See Popen.wait"""
         if self._returncode is None:
@@ -266,21 +266,21 @@ class Popen(Subprocess):
         return (out, err)
 
 
-def system(node, args):
+def system(node: "Node", args: str | list[str]) -> Optional[int]:
     """Emulates system() function, if `args' is an string, it uses `/bin/sh' to
     exexecute it, otherwise is interpreted as the argv array to call execve."""
     shell = isinstance(args, str)
     return Popen(node, args, shell=shell).wait()
 
 
-def backticks(node, args):
+def backticks(node: "Node", args: str | list[str]) -> str:
     """Emulates shell backticks, if `args' is an string, it uses `/bin/sh' to
     exexecute it, otherwise is interpreted as the argv array to call execve."""
     shell = isinstance(args, str)
     return Popen(node, args, shell=shell, stdout=PIPE).communicate()[0].decode("utf-8")
 
 
-def backticks_raise(node, args: str | list[str]) -> str:
+def backticks_raise(node: "Node", args: str | list[str]) -> str:
     """Emulates shell backticks, if `args' is an string, it uses `/bin/sh' to
     exexecute it, otherwise is interpreted as the argv array to call execve.
     Raises an RuntimeError if the return value is not 0."""
@@ -299,8 +299,8 @@ def backticks_raise(node, args: str | list[str]) -> str:
 #
 # Server-side code, called from nemu.protocol.Server
 
-def spawn(executable, argv=None, cwd=None, env=None, close_fds=False,
-          stdin=None, stdout=None, stderr=None, user=None):
+def spawn(executable: str, argv=None, cwd=None, env=None, close_fds: bool | list[int] = False,
+          stdin=None, stdout=None, stderr=None, user=None) -> int:
     """Internal function that performs all the dirty work for Subprocess, Popen
     and friends. This is executed in the slave process, directly from the
     protocol.Server class.
@@ -324,7 +324,7 @@ def spawn(executable, argv=None, cwd=None, env=None, close_fds=False,
             userfd[i] = userfd[i].fileno()  # pragma: no cover
 
     # Verify there is no clash
-    assert not (set([0, 1, 2]) & set(filtered_userfd))
+    assert not ({0, 1, 2} & set(filtered_userfd))
 
     if user is not None:
         user, uid, gid = get_user(user)
@@ -337,7 +337,7 @@ def spawn(executable, argv=None, cwd=None, env=None, close_fds=False,
 
     (r, w) = compat.pipe()
     pid = os.fork()
-    if pid == 0: # pragma: no cover
+    if pid == 0:  # pragma: no cover
         # coverage doesn't seem to understand fork
         try:
             # Set up stdio piping
@@ -352,14 +352,14 @@ def spawn(executable, argv=None, cwd=None, env=None, close_fds=False,
             flags = fcntl.fcntl(w, fcntl.F_GETFD)
             fcntl.fcntl(w, fcntl.F_SETFD, flags | fcntl.FD_CLOEXEC)
 
-            if close_fds == True:
+            if close_fds is True:
                 for i in range(3, MAXFD):
                     if i != w:
                         try:
                             os.close(i)
                         except:
                             pass
-            elif close_fds != False:
+            elif close_fds is not False:
                 for i in close_fds:
                     os.close(i)
 
