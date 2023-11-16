@@ -21,7 +21,7 @@ import struct
 from io import IOBase
 
 
-def __check_socket(sock: socket.socket | IOBase):
+def __check_socket(sock: socket.socket | IOBase) -> socket.socket:
     if hasattr(sock, 'family') and sock.family != socket.AF_UNIX:
         raise ValueError("Only AF_UNIX sockets are allowed")
 
@@ -33,7 +33,7 @@ def __check_socket(sock: socket.socket | IOBase):
 
     return sock
 
-def __check_fd(fd):
+def __check_fd(fd) -> int:
     try:
         fd = fd.fileno()
     except AttributeError:
@@ -44,7 +44,7 @@ def __check_fd(fd):
     return fd
 
 
-def recvfd(sock: socket.socket | IOBase, msg_buf: int = 4096):
+def recvfd(sock: socket.socket | IOBase, msg_buf: int = 4096) -> tuple[int, str]:
     size = struct.calcsize("@i")
     msg, ancdata, flags, addr = __check_socket(sock).recvmsg(msg_buf, socket.CMSG_SPACE(size))
     cmsg_level, cmsg_type, cmsg_data = ancdata[0]
@@ -59,7 +59,7 @@ def recvfd(sock: socket.socket | IOBase, msg_buf: int = 4096):
     return fd, msg.decode("utf-8")
 
 
-def sendfd(sock: socket.socket | IOBase, fd: int, message: bytes = b"NONE"):
+def sendfd(sock: socket.socket | IOBase, fd: int, message: bytes = b"NONE") -> int:
     return __check_socket(sock).sendmsg(
         [message],
         [(socket.SOL_SOCKET, socket.SCM_RIGHTS, struct.pack("@i", fd))])

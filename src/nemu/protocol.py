@@ -29,6 +29,7 @@ import tempfile
 import time
 import traceback
 from pickle import loads, dumps
+from typing import Literal
 
 import nemu.iproute
 import nemu.subprocess_
@@ -278,7 +279,7 @@ class Server(object):
         self.reply(220, "Hello.");
         while not self._closed:
             cmd = self.readcmd()
-            if cmd == None:
+            if cmd is None:
                 continue
             try:
                 cmd[0](cmd[1], *cmd[2])
@@ -422,7 +423,7 @@ class Server(object):
         else:
             ret = nemu.subprocess_.wait(pid)
 
-        if ret != None:
+        if ret is not None:
             self._children.remove(pid)
             if pid in self._xauthfiles:
                 try:
@@ -449,7 +450,7 @@ class Server(object):
         self.reply(200, "Process signalled.")
 
     def do_IF_LIST(self, cmdname, ifnr=None):
-        if ifnr == None:
+        if ifnr is None:
             ifdata = nemu.iproute.get_if_data()[0]
         else:
             ifdata = nemu.iproute.get_if(ifnr)
@@ -479,7 +480,7 @@ class Server(object):
 
     def do_ADDR_LIST(self, cmdname, ifnr=None):
         addrdata = nemu.iproute.get_addr_data()[0]
-        if ifnr != None:
+        if ifnr is not None:
             addrdata = addrdata[ifnr]
         self.reply(200, ["# Address data follows.",
                          _b64(dumps(addrdata, protocol=2))])
@@ -652,7 +653,7 @@ class Client(object):
         stdin/stdout/stderr can only be None or a open file descriptor.
         See nemu.subprocess_.spawn for details."""
 
-        if executable == None:
+        if executable is None:
             executable = argv[0]
         params = ["PROC", "CRTE", _b64(executable)]
         for i in argv:
@@ -663,28 +664,28 @@ class Client(object):
 
         # After this, if we get an error, we have to abort the PROC
         try:
-            if user != None:
+            if user is not None:
                 self._send_cmd("PROC", "USER", _b64(user))
                 self._read_and_check_reply()
 
-            if cwd != None:
+            if cwd is not None:
                 self._send_cmd("PROC", "CWD", _b64(cwd))
                 self._read_and_check_reply()
 
-            if env != None:
+            if env is not None:
                 params = []
                 for k, v in env.items():
                     params.extend([_b64(k), _b64(v)])
                 self._send_cmd("PROC", "ENV", *params)
                 self._read_and_check_reply()
 
-            if stdin != None:
+            if stdin is not None:
                 os.set_inheritable(stdin, True)
                 self._send_fd("SIN", stdin)
-            if stdout != None:
+            if stdout is not None:
                 os.set_inheritable(stdout, True)
                 self._send_fd("SOUT", stdout)
-            if stderr != None:
+            if stderr is not None:
                 os.set_inheritable(stderr, True)
                 self._send_fd("SERR", stderr)
         except:
@@ -739,7 +740,7 @@ class Client(object):
         cmd = ["IF", "SET", interface.index]
         for k in interface.changeable_attributes:
             v = getattr(interface, k)
-            if v != None:
+            if v is not None:
                 cmd += [k, str(v)]
 
         self._send_cmd(*cmd)
@@ -761,7 +762,7 @@ class Client(object):
         data = self._read_and_check_reply()
         return loads(_db64(data.partition("\n")[2]))
 
-    def add_addr(self, ifnr, address):
+    def add_addr(self, ifnr: int, address: nemu.iproute.address):
         if hasattr(address, "broadcast") and address.broadcast:
             self._send_cmd("ADDR", "ADD", ifnr, address.address,
                            address.prefix_len, address.broadcast)
@@ -770,7 +771,7 @@ class Client(object):
                            address.prefix_len)
         self._read_and_check_reply()
 
-    def del_addr(self, ifnr, address):
+    def del_addr(self, ifnr: int, address: nemu.iproute.address):
         self._send_cmd("ADDR", "DEL", ifnr, address.address, address.prefix_len)
         self._read_and_check_reply()
 
@@ -785,14 +786,14 @@ class Client(object):
     def del_route(self, route):
         self._add_del_route("DEL", route)
 
-    def _add_del_route(self, action, route):
+    def _add_del_route(self, action: Literal["ADD", "DEL"], route: nemu.iproute.route):
         args = ["ROUT", action, _b64(route.tipe), _b64(route.prefix),
                 route.prefix_len or 0, _b64(route.nexthop),
                 route.interface or 0, route.metric or 0]
         self._send_cmd(*args)
         self._read_and_check_reply()
 
-    def set_x11(self, protoname, hexkey):
+    def set_x11(self, protoname: str, hexkey: str) -> socket.socket:
         # Returns a socket ready to accept() connections
         self._send_cmd("X11", "SET", protoname, hexkey)
         self._read_and_check_reply()
@@ -823,7 +824,7 @@ class Client(object):
 
 
 def _b64_OLD(text: str | bytes) -> str:
-    if text == None:
+    if text is None:
         # easier this way
         text = ''
     if type(text) is str:
@@ -833,10 +834,11 @@ def _b64_OLD(text: str | bytes) -> str:
     else:
         btext = text
     if len(btext) == 0 or any(x for x in btext if x <= ord(" ") or
-                                                 x > ord("z") or x == ord("=")):
+                                                  x > ord("z") or x == ord("=")):
         return "=" + base64.b64encode(btext).decode("ascii")
     else:
         return text
+
 
 def _b64(text) -> str:
     if text is None:
@@ -848,7 +850,7 @@ def _b64(text) -> str:
     else:
         enc = str(text).encode("utf-8")
     if len(enc) == 0 or any(x for x in enc if x <= ord(" ") or
-                                                 x > ord("z") or x == ord("=")):
+                                              x > ord("z") or x == ord("=")):
         return "=" + base64.b64encode(enc).decode("ascii")
     else:
         return enc.decode("utf-8")

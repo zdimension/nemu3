@@ -27,7 +27,10 @@ import signal
 import sys
 import time
 import traceback
+import typing
 
+if typing.TYPE_CHECKING:
+    from nemu import Node
 from nemu import compat
 from nemu.environ import eintr_wrapper
 
@@ -46,7 +49,7 @@ class Subprocess(object):
     # FIXME
     default_user = None
 
-    def __init__(self, node, argv: str | list[str], executable=None,
+    def __init__(self, node: "Node", argv: str | list[str], executable=None,
                  stdin=None, stdout=None, stderr=None,
                  shell=False, cwd=None, env=None, user=None):
         self._slave = node._slave
@@ -78,7 +81,7 @@ class Subprocess(object):
         Exceptions occurred while trying to set up the environment or executing
         the program are propagated to the parent."""
 
-        if user == None:
+        if user is None:
             user = Subprocess.default_user
 
         if isinstance(argv, str):
@@ -106,20 +109,20 @@ class Subprocess(object):
     def poll(self):
         """Checks status of program, returns exitcode or None if still running.
         See Popen.poll."""
-        if self._returncode == None:
+        if self._returncode is None:
             self._returncode = self._slave.poll(self._pid)
         return self.returncode
 
     def wait(self):
         """Waits for program to complete and returns the exitcode.
         See Popen.wait"""
-        if self._returncode == None:
+        if self._returncode is None:
             self._returncode = self._slave.wait(self._pid)
         return self.returncode
 
     def signal(self, sig=signal.SIGTERM):
         """Sends a signal to the process."""
-        if self._returncode == None:
+        if self._returncode is None:
             self._slave.signal(self._pid, sig)
 
     @property
@@ -128,7 +131,7 @@ class Subprocess(object):
         communicate, wait, or poll), returns the signal that killed the
         program, if negative; otherwise, it is the exit code of the program.
         """
-        if self._returncode == None:
+        if self._returncode is None:
             return None
         if os.WIFSIGNALED(self._returncode):
             return -os.WTERMSIG(self._returncode)
@@ -140,12 +143,12 @@ class Subprocess(object):
         self.destroy()
 
     def destroy(self):
-        if self._returncode != None or self._pid == None:
+        if self._returncode is not None or self._pid is None:
             return
         self.signal()
         now = time.time()
         while time.time() - now < KILL_WAIT:
-            if self.poll() != None:
+            if self.poll() is not None:
                 return
             time.sleep(0.1)
         sys.stderr.write("WARNING: killing forcefully process %d.\n" %
@@ -179,7 +182,7 @@ class Popen(Subprocess):
         fdmap = {"stdin": stdin, "stdout": stdout, "stderr": stderr}
         # if PIPE: all should be closed at the end
         for k, v in fdmap.items():
-            if v == None:
+            if v is None:
                 continue
             if v == PIPE:
                 r, w = compat.pipe()
@@ -206,27 +209,29 @@ class Popen(Subprocess):
 
         # Close pipes, they have been dup()ed to the child
         for k, v in fdmap.items():
-            if getattr(self, k) != None:
+            if getattr(self, k) is not None:
                 eintr_wrapper(os.close, v)
 
-    def communicate(self, input: bytes = None) -> tuple[bytes, bytes]:
+    def communicate(self, input: bytes | str = None) -> tuple[bytes, bytes]:
         """See Popen.communicate."""
         # FIXME: almost verbatim from stdlib version, need to be removed or
         # something
+        if type(input) is str:
+            input = input.encode("utf-8")
         wset = []
         rset = []
         err = None
         out = None
-        if self.stdin != None:
+        if self.stdin is not None:
             self.stdin.flush()
             if input:
                 wset.append(self.stdin)
             else:
                 self.stdin.close()
-        if self.stdout != None:
+        if self.stdout is not None:
             rset.append(self.stdout)
             out = []
-        if self.stderr != None:
+        if self.stderr is not None:
             rset.append(self.stderr)
             err = []
 
@@ -253,9 +258,9 @@ class Popen(Subprocess):
                         else:
                             err.append(d)
 
-        if out != None:
+        if out is not None:
             out = b''.join(out)
-        if err != None:
+        if err is not None:
             err = b''.join(err)
         self.wait()
         return (out, err)
@@ -313,15 +318,15 @@ def spawn(executable, argv=None, cwd=None, env=None, close_fds=False,
     is not supported here. Also, the original descriptors are not closed.
     """
     userfd = [stdin, stdout, stderr]
-    filtered_userfd = [x for x in userfd if x != None and x >= 0]
+    filtered_userfd = [x for x in userfd if x is not None and x >= 0]
     for i in range(3):
-        if userfd[i] != None and not isinstance(userfd[i], int):
+        if userfd[i] is not None and not isinstance(userfd[i], int):
             userfd[i] = userfd[i].fileno()  # pragma: no cover
 
     # Verify there is no clash
     assert not (set([0, 1, 2]) & set(filtered_userfd))
 
-    if user != None:
+    if user is not None:
         user, uid, gid = get_user(user)
         home = pwd.getpwuid(uid)[5]
         groups = [x[2] for x in grp.getgrall() if user in x[3]]
@@ -337,7 +342,7 @@ def spawn(executable, argv=None, cwd=None, env=None, close_fds=False,
         try:
             # Set up stdio piping
             for i in range(3):
-                if userfd[i] != None and userfd[i] >= 0:
+                if userfd[i] is not None and userfd[i] >= 0:
                     os.dup2(userfd[i], i)
                     if userfd[i] != i and userfd[i] not in userfd[0:i]:
                         eintr_wrapper(os.close, userfd[i])  # only in child!
@@ -362,22 +367,22 @@ def spawn(executable, argv=None, cwd=None, env=None, close_fds=False,
             # (it is necessary to kill the forked subprocesses)
             os.setpgrp()
 
-            if user != None:
+            if user is not None:
                 # Change user
                 os.setgid(gid)
                 os.setgroups(groups)
                 os.setuid(uid)
-            if cwd != None:
+            if cwd is not None:
                 os.chdir(cwd)
             if not argv:
                 argv = [executable]
             if '/' in executable:  # Should not search in PATH
-                if env != None:
+                if env is not None:
                     os.execve(executable, argv, env)
                 else:
                     os.execv(executable, argv)
             else:  # use PATH
-                if env != None:
+                if env is not None:
                     os.execvpe(executable, argv, env)
                 else:
                     os.execvp(executable, argv)

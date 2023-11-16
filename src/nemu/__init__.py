@@ -41,7 +41,7 @@ class _Config(object):
         except KeyError:
             pass  # User not found.
 
-    def _set_run_as(self, user):
+    def _set_run_as(self, user: str | int):
         """Setter for `run_as'."""
         if str(user).isdigit():
             uid = int(user)
@@ -61,7 +61,7 @@ class _Config(object):
         self._run_as = run_as
         return run_as
 
-    def _get_run_as(self):
+    def _get_run_as(self) -> str:
         """Setter for `run_as'."""
         return self._run_as
 

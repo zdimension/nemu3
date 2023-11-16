@@ -15,6 +15,6 @@ setup(
         license     = 'GPLv2',
         platforms   = 'Linux',
         packages    = ['nemu'],
-        install_requires = ['unshare', 'six'],
+        install_requires = ['unshare', 'six', 'attrs'],
         package_dir = {'': 'src'}
         )

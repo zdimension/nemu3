@@ -107,7 +107,7 @@ class TestServer(unittest.TestCase):
         def check_ok(self, cmd, func, args):
             s1.write("%s\n" % cmd)
             ccmd = " ".join(cmd.upper().split()[0:2])
-            if func == None:
+            if func is None:
                 self.assertEqual(srv.readcmd()[1:3], (ccmd, args))
             else:
                 self.assertEqual(srv.readcmd(), (func, ccmd, args))

@@ -136,7 +136,7 @@ class TestGlobal(unittest.TestCase):
                     os.write(if1.fd, s)
                 if not s:
                     break
-            if subproc.poll() != None:
+            if subproc.poll() is not None:
                 break
 
     @test_util.skipUnless(os.getuid() == 0, "Test requires root privileges")

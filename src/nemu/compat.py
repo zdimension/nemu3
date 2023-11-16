@@ -8,10 +8,12 @@ def pipe() -> tuple[int, int]:
     os.set_inheritable(b, True)
     return a, b
 
+
 def socket(*args, **kwargs) -> pysocket.socket:
     s = pysocket.socket(*args, **kwargs)
     s.set_inheritable(True)
     return s
+
 
 def socketpair(*args, **kwargs) -> tuple[pysocket.socket, pysocket.socket]:
     a, b = pysocket.socketpair(*args, **kwargs)
@@ -19,12 +21,8 @@ def socketpair(*args, **kwargs) -> tuple[pysocket.socket, pysocket.socket]:
     b.set_inheritable(True)
     return a, b
 
+
 def fromfd(*args, **kwargs) -> pysocket.socket:
     s = pysocket.fromfd(*args, **kwargs)
-    s.set_inheritable(True)
-    return s
-
-def fdopen(*args, **kwargs) -> pysocket.socket:
-    s = os.fdopen(*args, **kwargs)
     s.set_inheritable(True)
     return s

@@ -25,7 +25,7 @@ import subprocess
 import sys
 import syslog
 from syslog import LOG_ERR, LOG_WARNING, LOG_NOTICE, LOG_INFO, LOG_DEBUG
-from typing import TypeVar, Callable
+from typing import TypeVar, Callable, Optional
 
 __all__ = ["IP_PATH", "TC_PATH", "BRCTL_PATH", "SYSCTL_PATH", "HZ"]
 
@@ -39,7 +39,7 @@ __all__ += ["set_log_level", "logger"]
 __all__ += ["error", "warning", "notice", "info", "debug"]
 
 
-def find_bin(name, extra_path=None):
+def find_bin(name: str, extra_path: Optional[list[str]] = None) -> Optional[str]:
     """Try hard to find the location of needed programs."""
     search = []
     if "PATH" in os.environ:
@@ -57,7 +57,7 @@ def find_bin(name, extra_path=None):
     return None
 
 
-def find_bin_or_die(name, extra_path=None):
+def find_bin_or_die(name: str, extra_path: Optional[list[str]] = None) -> str:
     """Try hard to find the location of needed programs; raise on failure."""
     res = find_bin(name, extra_path)
     if not res:
@@ -156,7 +156,7 @@ _log_syslog_opts = ()
 _log_pid = os.getpid()
 
 
-def set_log_level(level):
+def set_log_level(level: int):
     "Sets the log level for console messages, does not affect syslog logging."
     global _log_level
     assert level > LOG_ERR and level <= LOG_DEBUG
@@ -191,7 +191,7 @@ def _init_log():
     info("Syslog logging started")
 
 
-def logger(priority, message):
+def logger(priority: int, message: str):
     "Print a log message in syslog, console or both."
     if _log_use_syslog:
         if os.getpid() != _log_pid:

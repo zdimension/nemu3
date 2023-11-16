@@ -21,10 +21,13 @@ import os
 import socket
 import sys
 import traceback
+from typing import MutableMapping
+
 import unshare
 import weakref
 
 import nemu.interface
+import nemu.iproute
 import nemu.protocol
 import nemu.subprocess_
 from nemu import compat
@@ -33,10 +36,11 @@ from nemu.environ import *
 __all__ = ['Node', 'get_nodes', 'import_if']
 
 class Node(object):
-    _nodes = weakref.WeakValueDictionary()
+    _nodes: MutableMapping[int, "Node"] = weakref.WeakValueDictionary()
     _nextnode = 0
+    _processes: MutableMapping[int, nemu.subprocess_.Subprocess]
     @staticmethod
-    def get_nodes():
+    def get_nodes() -> list["Node"]:
         s = sorted(list(Node._nodes.items()), key = lambda x: x[0])
         return [x[1] for x in s]
 
@@ -98,7 +102,7 @@ class Node(object):
         return self._pid
 
     # Subprocesses
-    def _add_subprocess(self, subprocess):
+    def _add_subprocess(self, subprocess: nemu.subprocess_.Subprocess):
         self._processes[subprocess.pid] = subprocess
 
     def Subprocess(self, *kargs, **kwargs):
@@ -188,13 +192,13 @@ class Node(object):
             r = self.route(*args, **kwargs)
         return self._slave.del_route(r)
 
-    def get_routes(self):
+    def get_routes(self) -> list[route]:
         return self._slave.get_route_data()
 
 # Handle the creation of the child; parent gets (fd, pid), child creates and
 # runs a Server(); never returns.
 # Requires CAP_SYS_ADMIN privileges to run.
-def _start_child(nonetns) -> (socket.socket, int):
+def _start_child(nonetns: bool) -> (socket.socket, int):
     # Create socket pair to communicate
     (s0, s1) = compat.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
     # Spawn a child that will run in a loop

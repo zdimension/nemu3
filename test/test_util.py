@@ -15,7 +15,7 @@ def process_ipcmd(str: str):
         match = re.search(r'^(\d+): ([^@\s]+)(?:@\S+)?: <(\S+)> mtu (\d+) '
                           r'qdisc (\S+)',
                 line)
-        if match != None:
+        if match is not None:
             cur = match.group(2)
             out[cur] = {
                     'idx':      int(match.group(1)),
@@ -27,14 +27,14 @@ def process_ipcmd(str: str):
             out[cur]['up'] = 'UP' in out[cur]['flags']
             continue
         # Assume cur is defined
-        assert cur != None
+        assert cur is not None
         match = re.search(r'^\s+link/\S*(?: ([0-9a-f:]+))?(?: |$)', line)
-        if match != None:
+        if match is not None:
             out[cur]['lladdr'] = match.group(1)
             continue
 
         match = re.search(r'^\s+inet ([0-9.]+)/(\d+)(?: brd ([0-9.]+))?', line)
-        if match != None:
+        if match is not None:
             out[cur]['addr'].append({
                 'address': match.group(1),
                 'prefix_len': int(match.group(2)),
@@ -43,7 +43,7 @@ def process_ipcmd(str: str):
             continue
 
         match = re.search(r'^\s+inet6 ([0-9a-f:]+)/(\d+)(?: |$)', line)
-        if match != None:
+        if match is not None:
             out[cur]['addr'].append({
                 'address': match.group(1),
                 'prefix_len': int(match.group(2)),
@@ -51,7 +51,7 @@ def process_ipcmd(str: str):
             continue
 
         match = re.search(r'^\s{4}', line)
-        assert match != None
+        assert match is not None
     return out
 
 def get_devs():

@@ -140,7 +140,7 @@ def main():
             if not r:
                 break
             out += r
-        if srv.poll() != None or clt.poll() != None:
+        if srv.poll() is not None or clt.poll() is not None:
             break
 
     if srv.poll():
